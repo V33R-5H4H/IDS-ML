@@ -1,7 +1,7 @@
 """
 Data Preprocessing Script for IDS-ML System
 Loads NSL-KDD data, preprocesses, and saves for model training
-FIXED: Handles unseen attack types in test set
+FIXED: Handles unseen attack types properly
 """
 
 import pandas as pd
@@ -34,11 +34,11 @@ column_names = [
     'attack_type', 'difficulty_level'
 ]
 
-df_train = pd.read_csv('C:/V33R/Programming/Projects/IDS_ML/IDS-ML_1.0/data/raw/KDDTrain+.txt', names=column_names)
-df_test = pd.read_csv('C:/V33R/Programming/Projects/IDS_ML/IDS-ML_1.0/data/raw/KDDTest+.txt', names=column_names)
+df_train = pd.read_csv('../data/raw/KDDTrain+.txt', names=column_names)
+df_test = pd.read_csv('../data/raw/KDDTest+.txt', names=column_names)
 
 print(f"✅ Training data: {df_train.shape}")
-print(f"✅ Test data: {df_test.shape}")
+print(f"✅ Test data (original): {df_test.shape}")
 
 # ==================== STEP 2: Handle Unknown Attack Types ====================
 print("\n[2/7] Checking for unknown attack types...")
@@ -49,20 +49,24 @@ unseen_attacks = test_attacks - train_attacks
 
 if unseen_attacks:
     print(f"⚠️  Found {len(unseen_attacks)} unseen attack types in test set:")
-    print(f"   {', '.join(unseen_attacks)}")
+    print(f"   {', '.join(sorted(unseen_attacks))}")
+    print(f"   Filtering out rows with unseen attacks...")
     
-    # Map unseen attacks to 'unknown' or similar attack category
-    # For now, we'll map them to the most similar attack type or remove them
-    print(f"   Removing rows with unseen attacks from test set...")
-    df_test = df_test[df_test['attack_type'].isin(train_attacks)]
+    # Keep only attacks that exist in training set
+    df_test = df_test[df_test['attack_type'].isin(train_attacks)].copy()
     print(f"✅ Test data after filtering: {df_test.shape}")
 else:
     print("✅ No unseen attack types")
 
+# Verify we still have test data
+if len(df_test) == 0:
+    print("\n❌ ERROR: No test data remaining after filtering!")
+    print("   This shouldn't happen. Please check your KDDTest+.txt file.")
+    exit(1)
+
 # ==================== STEP 3: Feature Selection ====================
 print("\n[3/7] Selecting features...")
 
-# Select top 12 features based on correlation and domain knowledge
 selected_features = [
     'duration', 'protocol_type', 'service', 'flag', 'src_bytes', 'dst_bytes',
     'logged_in', 'count', 'srv_count', 'serror_rate', 'srv_serror_rate',
@@ -86,21 +90,14 @@ label_encoders = {}
 for feature in categorical_features:
     le = LabelEncoder()
     
-    # Fit on training data
-    X_train[feature] = le.fit_transform(X_train[feature])
+    # Combine train and test to fit encoder on all possible values
+    combined_values = pd.concat([X_train[feature], X_test[feature]]).unique()
+    le.fit(combined_values)
     
-    # Transform test data, handling unseen labels
-    def safe_transform(le, data):
-        """Transform data, mapping unseen labels to -1"""
-        result = []
-        for val in data:
-            if val in le.classes_:
-                result.append(le.transform([val])[0])
-            else:
-                result.append(-1)  # Unknown label
-        return np.array(result)
+    # Transform both train and test
+    X_train[feature] = le.transform(X_train[feature])
+    X_test[feature] = le.transform(X_test[feature])
     
-    X_test[feature] = safe_transform(le, X_test[feature])
     label_encoders[feature] = le
     print(f"   ✅ Encoded {feature}: {len(le.classes_)} classes")
 
@@ -118,18 +115,16 @@ print("\n[6/7] Encoding target variable...")
 
 label_encoder_target = LabelEncoder()
 y_train_encoded = label_encoder_target.fit_transform(y_train)
-y_test_encoded = label_encoder_target.transform(y_test)  # Now safe, we filtered test set
+y_test_encoded = label_encoder_target.transform(y_test)
 
 print(f"✅ Target encoded: {len(label_encoder_target.classes_)} attack types")
-print(f"   Classes: {list(label_encoder_target.classes_[:10])}...")
+print(f"   Sample classes: {', '.join(label_encoder_target.classes_[:10])}...")
 
 # ==================== STEP 7: Save Preprocessed Data ====================
 print("\n[7/7] Saving preprocessed data...")
 
-# Create output directory
-os.makedirs('C:/V33R/Programming/Projects/IDS_ML/IDS-ML_1.0/data/processed', exist_ok=True)
+os.makedirs('../data/processed', exist_ok=True)
 
-# Save preprocessed data
 preprocessed_data = {
     'X_train': X_train_scaled,
     'X_test': X_test_scaled,
@@ -144,13 +139,13 @@ preprocessed_data = {
     'attack_types': list(label_encoder_target.classes_)
 }
 
-with open('C:/V33R/Programming/Projects/IDS_ML/IDS-ML_1.0/data/processed/preprocessed_data.pkl', 'wb') as f:
+with open('../data/processed/preprocessed_data.pkl', 'wb') as f:
     pickle.dump(preprocessed_data, f)
 
 print(f"✅ Saved to: data/processed/preprocessed_data.pkl")
 
-# Save also as numpy arrays for easy access
-np.savez('C:/V33R/Programming/Projects/IDS_ML/IDS-ML_1.0/data/processed/train_test_data.npz',
+# Save also as numpy arrays
+np.savez('../data/processed/train_test_data.npz',
          X_train=X_train_scaled,
          X_test=X_test_scaled,
          y_train=y_train_encoded,
@@ -162,18 +157,18 @@ print(f"✅ Saved to: data/processed/train_test_data.npz")
 print("\n" + "=" * 60)
 print("PREPROCESSING COMPLETE!")
 print("=" * 60)
+
+attack_dist = pd.Series(y_train).value_counts()
 print(f"""
 ✅ Training samples: {X_train_scaled.shape[0]:,}
 ✅ Test samples: {X_test_scaled.shape[0]:,}
 ✅ Features: {X_train_scaled.shape[1]}
 ✅ Attack types: {len(label_encoder_target.classes_)}
 
-📊 Attack type distribution (training):
+📊 Top 10 Attack Distribution (training):
 """)
 
-# Show attack distribution
-attack_dist = pd.Series(y_train).value_counts().head(10)
-for attack, count in attack_dist.items():
+for attack, count in attack_dist.head(10).items():
     print(f"   {attack:20s}: {count:6,} ({count/len(y_train)*100:5.2f}%)")
 
 print(f"""
@@ -182,5 +177,5 @@ print(f"""
    - train_test_data.npz (numpy arrays only)
 
 🎯 Data ready for model training!
-Next step: Run scripts/train_model.py
+Next step: python scripts/train_model.py
 """)
