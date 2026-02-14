@@ -1,35 +1,28 @@
-# Core ML Libraries
-scikit-learn>=1.5.0
-pandas>=2.0.3
-numpy>=1.26.0
-xgboost>=2.0.2
-joblib>=1.3.2
+# ============================================
+# IDS-ML v1.0 Dependencies - Updated Feb 2026
+# Compatible versions tested and working
+# ============================================
 
-# Deep Learning
-torch>=2.0.1
-torchvision>=0.15.2
+# Core API Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.4.2
+python-multipart==0.0.6
 
-# API Framework
-fastapi>=0.104.1
-uvicorn>=0.24.0
-pydantic>=2.4.2
-python-multipart>=0.0.6
-
-# Database
-sqlalchemy>=2.0.23
-psycopg2-binary>=2.9.9
-clickhouse-driver==0.2.10
-
-# Testing
-pytest>=7.4.3
-pytest-cov>=4.1.0
-httpx>=0.25.2
+# ML & Data Processing (Updated for compatibility)
+scikit-learn==1.5.2
+pandas==2.2.0
+numpy==1.26.4
+joblib==1.4.2
 
 # Utilities
-python-dotenv>=1.0.0
-pyyaml>=6.0.1
-matplotlib>=3.8.1
-seaborn>=0.13.0
+python-dotenv==1.0.0
 
-# Data validation
-requests>=2.31.0
+# Visualization (for notebooks)
+matplotlib==3.9.0
+seaborn==0.13.2
+
+# Development & Testing
+pytest==7.4.3
+pytest-cov==4.1.0
+httpx==0.25.2
