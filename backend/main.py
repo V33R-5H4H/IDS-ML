@@ -1,11 +1,13 @@
 """
 FastAPI Main Application for IDS-ML System
+Clean version - No warnings
 """
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, List
+from typing import List
+from contextlib import asynccontextmanager
 import sys
 from pathlib import Path
 
@@ -15,28 +17,12 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 from backend.config import config
 from scripts.predict import IDSPredictor
 
-# Initialize FastAPI app
-app = FastAPI(
-    title=config.API_TITLE,
-    version=config.API_VERSION,
-    description=config.API_DESCRIPTION
-)
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=config.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Initialize predictor
+# Initialize predictor globally
 predictor = None
 
-@app.on_event("startup")
-async def startup_event():
-    """Load model on startup"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Load model on startup, cleanup on shutdown"""
     global predictor
     try:
         predictor = IDSPredictor(
@@ -47,6 +33,28 @@ async def startup_event():
     except Exception as e:
         print(f"❌ Error loading model: {e}")
         raise
+
+    yield
+
+    # Cleanup on shutdown
+    print("Shutting down API...")
+
+# Initialize FastAPI app with lifespan
+app = FastAPI(
+    title=config.API_TITLE,
+    version=config.API_VERSION,
+    description=config.API_DESCRIPTION,
+    lifespan=lifespan
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=config.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Pydantic models for request/response
 class FlowFeatures(BaseModel):
@@ -63,9 +71,9 @@ class FlowFeatures(BaseModel):
     serror_rate: float = Field(..., description="% of connections with SYN errors")
     srv_serror_rate: float = Field(..., description="% of connections with SYN errors (service)")
     dst_host_srv_count: int = Field(..., description="Count of connections to destination host")
-    
-    class Config:
-        schema_extra = {
+
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "duration": 0,
                 "protocol_type": "tcp",
@@ -81,6 +89,7 @@ class FlowFeatures(BaseModel):
                 "dst_host_srv_count": 9
             }
         }
+    }
 
 class PredictionResponse(BaseModel):
     """Prediction response"""
@@ -88,14 +97,22 @@ class PredictionResponse(BaseModel):
     confidence: float
     is_attack: bool
     severity: str
-    model_version: str
+    version: str
+
+    model_config = {
+        "protected_namespaces": ()
+    }
 
 class ModelInfo(BaseModel):
     """Model information"""
-    model_name: str
+    name: str
     accuracy: float
     version: str
     features: List[str]
+
+    model_config = {
+        "protected_namespaces": ()
+    }
 
 # API Endpoints
 @app.get("/")
@@ -120,9 +137,9 @@ async def get_model_info():
     """Get model information"""
     if predictor is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
-    
+
     return ModelInfo(
-        model_name=predictor.metadata['model_name'],
+        name=predictor.metadata['model_name'],
         accuracy=predictor.metadata['accuracy'],
         version=config.API_VERSION,
         features=predictor.feature_names
@@ -133,14 +150,14 @@ async def predict(features: FlowFeatures):
     """Make prediction on network flow"""
     if predictor is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
-    
+
     try:
-        # Convert to dict
-        feature_dict = features.dict()
-        
+        # Convert to dict using model_dump (Pydantic V2)
+        feature_dict = features.model_dump()
+
         # Make prediction
         result = predictor.predict_raw(feature_dict)
-        
+
         # Determine severity
         if not result['is_attack']:
             severity = "None"
@@ -150,15 +167,15 @@ async def predict(features: FlowFeatures):
             severity = "Medium"
         else:
             severity = "Low"
-        
+
         return PredictionResponse(
             prediction=result['prediction'],
             confidence=result['confidence'],
             is_attack=result['is_attack'],
             severity=severity,
-            model_version=config.API_VERSION
+            version=config.API_VERSION
         )
-    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
 
@@ -167,7 +184,7 @@ async def get_stats():
     """Get system statistics"""
     if predictor is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
-    
+
     return {
         "model_accuracy": predictor.metadata['accuracy'],
         "n_estimators": predictor.metadata.get('n_estimators', 'N/A'),
