@@ -1,0 +1,74 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual Environment
+venv/
+env/
+.venv/
+.env/
+.ids1.0_backend/
+backend/.ids1.0_backend/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Data files (don't commit raw data)
+data/raw/*.txt
+data/raw/*.csv
+data/raw/*.arff
+data/processed/*.pkl
+data/processed/*.npz
+
+# Model files (large - don't commit)
+models/*.pkl
+models/*.h5
+models/*.pt
+models/*.pth
+
+# Keep metadata (small JSON files)
+!models/model_metadata.json
+!models/*.json
+
+# Logs
+logs/
+*.log
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+
+# Database
+*.db
+*.sqlite
+
+# OS specific
+Thumbs.db
+.DS_Store
+
+# Temporary files
+*.tmp
+*.bak
+coverage/
+
+# Build artifacts
+node_modules/
+dist/
+*.class
+*.jar
