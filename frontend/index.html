@@ -1,10 +1,355 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>$Title$</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IDS-ML Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f5f7fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 0;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .metric-card {
+            text-align: center;
+            padding: 20px;
+        }
+        .metric-value {
+            font-size: 36px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .metric-label {
+            font-size: 14px;
+            color: #6c757d;
+            text-transform: uppercase;
+        }
+        .prediction-form {
+            padding: 20px;
+        }
+        .result-box {
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        .result-normal {
+            background-color: #d4edda;
+            border-left: 4px solid #28a745;
+        }
+        .result-attack {
+            background-color: #f8d7da;
+            border-left: 4px solid #dc3545;
+        }
+        .btn-predict {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            padding: 10px 30px;
+            color: white;
+            font-weight: bold;
+        }
+        .btn-predict:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+    </style>
 </head>
 <body>
-$END$
+    <div class="header">
+        <div class="container">
+            <h1>🛡️ IDS-ML Dashboard</h1>
+            <p class="mb-0">Intrusion Detection System with Machine Learning</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Stats Row -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card metric-card">
+                    <div class="metric-value" id="model-accuracy">--</div>
+                    <div class="metric-label">Model Accuracy</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card metric-card">
+                    <div class="metric-value" id="total-predictions">0</div>
+                    <div class="metric-label">Total Predictions</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card metric-card">
+                    <div class="metric-value" id="attacks-detected">0</div>
+                    <div class="metric-label">Attacks Detected</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card metric-card">
+                    <div class="metric-value" id="model-version">--</div>
+                    <div class="metric-label">Model Version</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Prediction Form -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Make Prediction</h5>
+                    </div>
+                    <div class="card-body prediction-form">
+                        <form id="prediction-form">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label>Protocol Type</label>
+                                    <select class="form-control" name="protocol_type" required>
+                                        <option value="tcp">TCP</option>
+                                        <option value="udp">UDP</option>
+                                        <option value="icmp">ICMP</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label>Service</label>
+                                    <select class="form-control" name="service" required>
+                                        <option value="http">HTTP</option>
+                                        <option value="ftp">FTP</option>
+                                        <option value="smtp">SMTP</option>
+                                        <option value="ssh">SSH</option>
+                                        <option value="telnet">Telnet</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label>Source Bytes</label>
+                                    <input type="number" class="form-control" name="src_bytes" value="181" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label>Destination Bytes</label>
+                                    <input type="number" class="form-control" name="dst_bytes" value="5450" required>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label>Count</label>
+                                    <input type="number" class="form-control" name="count" value="8" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label>Service Count</label>
+                                    <input type="number" class="form-control" name="srv_count" value="8" required>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label>Flag</label>
+                                    <select class="form-control" name="flag" required>
+                                        <option value="SF">SF</option>
+                                        <option value="S0">S0</option>
+                                        <option value="REJ">REJ</option>
+                                        <option value="RSTO">RSTO</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label>Duration</label>
+                                    <input type="number" class="form-control" name="duration" value="0" required>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label>Logged In</label>
+                                    <select class="form-control" name="logged_in" required>
+                                        <option value="1">Yes</option>
+                                        <option value="0">No</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label>SError Rate</label>
+                                    <input type="number" step="0.01" class="form-control" name="serror_rate" value="0.0" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label>Srv SError Rate</label>
+                                    <input type="number" step="0.01" class="form-control" name="srv_serror_rate" value="0.0" required>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label>Dst Host Srv Count</label>
+                                <input type="number" class="form-control" name="dst_host_srv_count" value="9" required>
+                            </div>
+
+                            <button type="submit" class="btn btn-predict w-100">
+                                Analyze Traffic
+                            </button>
+                        </form>
+
+                        <div id="prediction-result" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results & Info -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">System Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <h6>Model Details</h6>
+                        <p id="model-info">Loading...</p>
+
+                        <h6 class="mt-3">Features Used (12)</h6>
+                        <ul id="features-list" class="small">
+                            <li>Loading...</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Recent Predictions</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="recent-predictions">
+                            <p class="text-muted">No predictions yet. Use the form to analyze traffic.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+        let totalPredictions = 0;
+        let attacksDetected = 0;
+        let recentPredictions = [];
+
+        // Load model info on page load
+        async function loadModelInfo() {
+            try {
+                const response = await fetch(`${API_URL}/model/info`);
+                const data = await response.json();
+
+                document.getElementById('model-accuracy').textContent =
+                    (data.accuracy * 100).toFixed(2) + '%';
+                document.getElementById('model-version').textContent = data.version;
+                document.getElementById('model-info').textContent =
+                    `${data.model_name} - Accuracy: ${(data.accuracy * 100).toFixed(2)}%`;
+
+                // Display features
+                const featuresList = document.getElementById('features-list');
+                featuresList.innerHTML = data.features.map(f => `<li>${f}</li>`).join('');
+            } catch (error) {
+                console.error('Error loading model info:', error);
+                document.getElementById('model-info').textContent = 'Error loading model information';
+            }
+        }
+
+        // Handle prediction form submission
+        document.getElementById('prediction-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = new FormData(e.target);
+            const features = {
+                duration: parseInt(formData.get('duration')),
+                protocol_type: formData.get('protocol_type'),
+                service: formData.get('service'),
+                flag: formData.get('flag'),
+                src_bytes: parseInt(formData.get('src_bytes')),
+                dst_bytes: parseInt(formData.get('dst_bytes')),
+                logged_in: parseInt(formData.get('logged_in')),
+                count: parseInt(formData.get('count')),
+                srv_count: parseInt(formData.get('srv_count')),
+                serror_rate: parseFloat(formData.get('serror_rate')),
+                srv_serror_rate: parseFloat(formData.get('srv_serror_rate')),
+                dst_host_srv_count: parseInt(formData.get('dst_host_srv_count'))
+            };
+
+            try {
+                const response = await fetch(`${API_URL}/predict`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(features)
+                });
+
+                const result = await response.json();
+
+                // Update stats
+                totalPredictions++;
+                if (result.is_attack) attacksDetected++;
+
+                document.getElementById('total-predictions').textContent = totalPredictions;
+                document.getElementById('attacks-detected').textContent = attacksDetected;
+
+                // Display result
+                const resultBox = document.getElementById('prediction-result');
+                resultBox.style.display = 'block';
+                resultBox.className = result.is_attack ? 'result-box result-attack' : 'result-box result-normal';
+                resultBox.innerHTML = `
+                    <h5>${result.is_attack ? '⚠️ ATTACK DETECTED' : '✅ NORMAL TRAFFIC'}</h5>
+                    <p><strong>Prediction:</strong> ${result.prediction}</p>
+                    <p><strong>Confidence:</strong> ${(result.confidence * 100).toFixed(2)}%</p>
+                    <p><strong>Severity:</strong> ${result.severity}</p>
+                    <p class="mb-0 small text-muted">Model: ${result.model_version}</p>
+                `;
+
+                // Add to recent predictions
+                addRecentPrediction(result);
+
+            } catch (error) {
+                console.error('Prediction error:', error);
+                alert('Error making prediction. Make sure the API is running.');
+            }
+        });
+
+        function addRecentPrediction(result) {
+            const now = new Date().toLocaleTimeString();
+            recentPredictions.unshift({
+                time: now,
+                prediction: result.prediction,
+                confidence: result.confidence,
+                is_attack: result.is_attack
+            });
+
+            // Keep only last 5
+            if (recentPredictions.length > 5) {
+                recentPredictions = recentPredictions.slice(0, 5);
+            }
+
+            // Update display
+            const container = document.getElementById('recent-predictions');
+            container.innerHTML = recentPredictions.map(p => `
+                <div class="mb-2 p-2 ${p.is_attack ? 'bg-danger-subtle' : 'bg-success-subtle'} rounded">
+                    <small>
+                        <strong>${p.time}</strong> - ${p.prediction}
+                        (${(p.confidence * 100).toFixed(1)}%)
+                    </small>
+                </div>
+            `).join('');
+        }
+
+        // Load model info on page load
+        loadModelInfo();
+    </script>
 </body>
 </html>
