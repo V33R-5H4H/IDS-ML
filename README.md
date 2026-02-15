@@ -11,19 +11,19 @@
 
 ## 📋 Table of Contents
 
-- [Overview](#overview)
-- [Features](#features)
-- [System Architecture](#system-architecture)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Model Performance](#model-performance)
-- [API Documentation](#api-documentation)
-- [Project Structure](#project-structure)
-- [Technologies Used](#technologies-used)
-- [Screenshots](#screenshots)
-- [Future Enhancements](#future-enhancements)
-- [Contributing](#contributing)
-- [License](#license)
+- [Overview](#-overview)
+- [Features](#-features)
+- [System Architecture](#%EF%B8%8F-system-architecture)
+- [Installation](#-installation)
+- [Usage](#-usage)
+- [Model Performance](#-model-performance)
+- [API Documentation](#-api-documentation)
+- [Project Structure](#-project-structure)
+- [Technologies Used](#%EF%B8%8F-technologies-used)
+- [Screenshots](#-screenshots)
+- [Future Enhancements](#-future-enhancements)
+- [Contributing](#-contributing)
+- [License](#-license)
 
 ---
 
@@ -44,6 +44,7 @@ IDS-ML is an intelligent network intrusion detection system that uses machine le
 ## ✨ Features
 
 ### Core Functionality
+
 - ✅ **Multi-Attack Detection**: Detects Neptune, Smurf, PortSweep, Satan, IPSweep, Back, Teardrop, PoD attacks
 - ✅ **Real-time Analysis**: Instant prediction via RESTful API
 - ✅ **Confidence Scoring**: Provides prediction confidence levels
@@ -51,6 +52,7 @@ IDS-ML is an intelligent network intrusion detection system that uses machine le
 - ✅ **Traffic Simulation**: Built-in attack simulator for testing
 
 ### Technical Features
+
 - ✅ **Random Forest Classifier** with 300 estimators
 - ✅ **Feature Engineering** using 12 critical network features
 - ✅ **Data Preprocessing** with StandardScaler and LabelEncoder
@@ -114,7 +116,7 @@ IDS-ML is an intelligent network intrusion detection system that uses machine le
 ### Step 1: Clone Repository
 
 ```bash
-git clone https://github.com/yourusername/IDS-ML.git
+git clone https://github.com/V33R-5H4H/IDS-ML_1.0.git
 cd IDS-ML_1.0
 ```
 
@@ -139,6 +141,7 @@ pip install -r backend/requirements.txt
 ### Step 4: Download NSL-KDD Dataset
 
 Download the NSL-KDD dataset and place files in `data/raw/`:
+
 - `KDDTrain+.txt`
 - `KDDTest+.txt`
 
@@ -163,24 +166,28 @@ python scripts/train_model.py
 ### Quick Start
 
 **Windows:**
+
 ```bash
 start.bat
 ```
 
 **Linux/Mac:**
+
 ```bash
 chmod +x start.sh
 ./start.sh
 ```
 
 **Or use Python:**
+
 ```bash
 python start.py
 ```
 
 The system will:
-1. Start backend API on http://localhost:8000
-2. Start frontend server on http://localhost:3000
+
+1. Start backend API on <http://localhost:8000>
+2. Start frontend server on <http://localhost:3000>
 3. Automatically open dashboard in browser
 
 ---
@@ -188,24 +195,26 @@ The system will:
 ### Manual Start
 
 **Terminal 1 - Backend:**
+
 ```bash
 cd backend
 python main.py
 ```
 
 **Terminal 2 - Frontend:**
+
 ```bash
 cd frontend
 python -m http.server 3000
 ```
 
-Then open: http://localhost:3000
+Then open: <http://localhost:3000>
 
 ---
 
 ### Using the Dashboard
 
-1. **Open** http://localhost:3000
+1. **Open** <http://localhost:3000>
 2. **Fill in** network traffic features
 3. **Click** "Analyze Traffic"
 4. **View** prediction results with confidence and severity
@@ -215,6 +224,7 @@ Then open: http://localhost:3000
 ### Using the API
 
 **Make a prediction:**
+
 ```bash
 curl -X POST http://localhost:8000/predict \
   -H "Content-Type: application/json" \
@@ -235,6 +245,7 @@ curl -X POST http://localhost:8000/predict \
 ```
 
 **Response:**
+
 ```json
 {
   "prediction": "normal",
@@ -256,6 +267,7 @@ python attack_simulator.py
 ```
 
 **Choose from:**
+
 1. Quick Demo (20 packets)
 2. Continuous Simulation (60 seconds)
 3. Heavy Attack Simulation (70% attacks)
@@ -307,12 +319,15 @@ python attack_simulator.py
 ### Endpoints
 
 #### `GET /`
+
 Root endpoint returning API information
 
 #### `GET /health`
+
 Health check endpoint
 
 **Response:**
+
 ```json
 {
   "status": "healthy",
@@ -321,9 +336,11 @@ Health check endpoint
 ```
 
 #### `GET /model/info`
+
 Get model information and features
 
 **Response:**
+
 ```json
 {
   "name": "Random Forest IDS v1.0",
@@ -334,9 +351,11 @@ Get model information and features
 ```
 
 #### `POST /predict`
+
 Make prediction on network traffic
 
 **Request Body:**
+
 ```json
 {
   "duration": 0,
@@ -355,9 +374,10 @@ Make prediction on network traffic
 ```
 
 #### `GET /stats`
+
 Get system statistics
 
-**Interactive Documentation:** http://localhost:8000/docs
+**Interactive Documentation:** <http://localhost:8000/docs>
 
 ---
 
@@ -414,23 +434,27 @@ IDS-ML_1.0/
 ## 🛠️ Technologies Used
 
 ### Backend
+
 - **FastAPI** - Modern web framework for APIs
 - **Uvicorn** - ASGI server
 - **Pydantic** - Data validation
 
 ### Machine Learning
+
 - **scikit-learn** - ML algorithms and preprocessing
 - **pandas** - Data manipulation
 - **numpy** - Numerical computing
 - **joblib** - Model serialization
 
 ### Frontend
+
 - **HTML5/CSS3** - Structure and styling
 - **JavaScript (ES6+)** - Frontend logic
 - **Bootstrap 5** - UI framework
 - **Fetch API** - HTTP requests
 
 ### Development
+
 - **Python 3.11** - Programming language
 - **Git** - Version control
 - **VSCode** - IDE
@@ -439,17 +463,27 @@ IDS-ML_1.0/
 
 ## 📸 Screenshots
 
+> **Note:** Screenshots are generated during testing. To capture your own, start the system (`python start.py`) and take screenshots of the dashboard, attack detection results, and the API docs page at `http://localhost:8000/docs`.
+
 ### Dashboard
-![Dashboard](docs/screenshots/dashboard.png)
+
+<!-- ![Dashboard](docs/screenshots/dashboard.png) -->
+*Start the system and open `http://localhost:3000` to see the live dashboard.*
 
 ### Normal Traffic Detection
-![Normal](docs/screenshots/normal_detection.png)
+
+<!-- ![Normal](docs/screenshots/normal_detection.png) -->
+*Submit normal HTTP traffic features using the form to see a green "NORMAL TRAFFIC" result.*
 
 ### Attack Detection
-![Attack](docs/screenshots/attack_detection.png)
+
+<!-- ![Attack](docs/screenshots/attack_detection.png) -->
+*Submit Neptune DoS attack features to see a red "ATTACK DETECTED" result with severity.*
 
 ### API Documentation
-![API Docs](docs/screenshots/api_docs.png)
+
+<!-- ![API Docs](docs/screenshots/api_docs.png) -->
+*Open `http://localhost:8000/docs` for the interactive Swagger UI.*
 
 ---
 
@@ -490,7 +524,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 👥 Authors
 
-- **V33R-5H4H** - *Initial work* - [https://github.com/V33R-5H4H](https://github.com/yourusername)
+- **V33R-5H4H** - *Initial work* - [https://github.com/V33R-5H4H](https://github.com/V33R-5H4H)
 
 ---
 
@@ -505,17 +539,17 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Contact
 
-**Your Name** - veer3.shah@gmail.com
+**V33R-5H4H** - <veer3.shah@gmail.com>
 
-**Project Link:** [https://github.com/V33R-5H4H/IDS-ML_1.0](https://github.com/yourusername/IDS-ML)
+**Project Link:** [https://github.com/V33R-5H4H/IDS-ML_1.0](https://github.com/V33R-5H4H/IDS-ML_1.0)
 
 ---
 
 ## 📖 References
 
-1. Tavallaee, M., et al. (2009). "A detailed analysis of the KDD CUP 99 data set"
-2. Breiman, L. (2001). "Random Forests. Machine Learning"
-3. NSL-KDD Dataset: https://www.unb.ca/cic/datasets/nsl.html
+1. Tavallaee, M., Bagheri, E., Lu, W., & Ghorbani, A. A. (2009). "A detailed analysis of the KDD CUP 99 data set." *IEEE Symposium on Computational Intelligence for Security and Defense Applications.*
+2. Breiman, L. (2001). "Random Forests." *Machine Learning, 45*(1), 5–32.
+3. NSL-KDD Dataset — University of New Brunswick: [https://www.unb.ca/cic/datasets/nsl.html](https://www.unb.ca/cic/datasets/nsl.html)
 
 ---
 
