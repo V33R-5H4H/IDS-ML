@@ -1,34 +1,112 @@
-// IDS-ML Dashboard JavaScript
+// IDS-ML Dashboard with Live Stats Polling
 const API_URL = 'http://localhost:8000';
+let pollInterval = null;
 
-let totalPredictions = 0;
-let attacksDetected = 0;
-let recentPredictions = [];
+// Poll stats every 2 seconds
+function startPolling() {
+    // Initial load
+    loadModelInfo();
+    updateStats();
+    updateHistory();
 
-// Load model info on page load
+    // Poll every 2 seconds
+    pollInterval = setInterval(() => {
+        updateStats();
+        updateHistory();
+    }, 2000);
+}
+
+// Stop polling
+function stopPolling() {
+    if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+    }
+}
+
+// Load model info (once)
 async function loadModelInfo() {
     try {
         const response = await fetch(`${API_URL}/model/info`);
         const data = await response.json();
 
-        document.getElementById('model-accuracy').textContent = 
+        document.getElementById('model-accuracy').textContent =
             (data.accuracy * 100).toFixed(2) + '%';
         document.getElementById('model-version').textContent = data.version;
-        document.getElementById('model-info').textContent = 
+        document.getElementById('model-info').textContent =
             `${data.name} - Accuracy: ${(data.accuracy * 100).toFixed(2)}%`;
 
-        // Display features
         const featuresList = document.getElementById('features-list');
         featuresList.innerHTML = data.features.map(f => `<li>${f}</li>`).join('');
     } catch (error) {
         console.error('Error loading model info:', error);
         document.getElementById('model-info').textContent = 'Error loading model information';
-        document.getElementById('model-accuracy').textContent = 'N/A';
-        document.getElementById('model-version').textContent = 'N/A';
     }
 }
 
-// Handle prediction form submission
+// Update stats from backend
+async function updateStats() {
+    try {
+        const response = await fetch(`${API_URL}/stats`);
+        const data = await response.json();
+
+        // Update counters
+        document.getElementById('total-predictions').textContent = data.total_predictions;
+        document.getElementById('attacks-detected').textContent = data.attacks_detected;
+
+        // Update accuracy if changed
+        if (data.model_accuracy) {
+            document.getElementById('model-accuracy').textContent =
+                (data.model_accuracy * 100).toFixed(2) + '%';
+        }
+    } catch (error) {
+        console.error('Error updating stats:', error);
+    }
+}
+
+// Update prediction history
+async function updateHistory() {
+    try {
+        const response = await fetch(`${API_URL}/history`);
+        const data = await response.json();
+
+        if (data.predictions && data.predictions.length > 0) {
+            displayHistory(data.predictions);
+        }
+    } catch (error) {
+        console.error('Error loading history:', error);
+    }
+}
+
+// Display prediction history
+function displayHistory(predictions) {
+    const container = document.getElementById('recent-predictions');
+
+    if (!predictions || predictions.length === 0) {
+        container.innerHTML = '<p class="text-muted">No predictions yet. Use the form to analyze traffic.</p>';
+        return;
+    }
+
+    // Show last 10, most recent first
+    const recent = predictions.slice(-10).reverse();
+
+    container.innerHTML = recent.map(p => {
+        const time = new Date(p.timestamp).toLocaleTimeString();
+        const bgClass = p.is_attack ? 'bg-danger-subtle' : 'bg-success-subtle';
+        const icon = p.is_attack ? '🔴' : '🟢';
+
+        return `
+            <div class="mb-2 p-2 ${bgClass} rounded">
+                <small>
+                    ${icon} <strong>${time}</strong> - ${p.prediction} 
+                    (${(p.confidence * 100).toFixed(1)}%)
+                </small>
+            </div>
+        `;
+    }).join('');
+}
+
+// Handle form submission
 document.getElementById('prediction-form').addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -63,18 +141,10 @@ document.getElementById('prediction-form').addEventListener('submit', async (e) 
 
         const result = await response.json();
 
-        // Update stats
-        totalPredictions++;
-        if (result.is_attack) attacksDetected++;
-
-        document.getElementById('total-predictions').textContent = totalPredictions;
-        document.getElementById('attacks-detected').textContent = attacksDetected;
-
         // Display result
         displayPredictionResult(result);
 
-        // Add to recent predictions
-        addRecentPrediction(result);
+        // Stats will auto-update from polling
 
     } catch (error) {
         console.error('Prediction error:', error);
@@ -98,6 +168,8 @@ function displayPredictionResult(result) {
         <p><strong>Severity:</strong> <span style="color: ${severityColor}; font-weight: 600;">${result.severity}</span></p>
         <p class="mb-0 small text-muted">Model Version: ${result.version}</p>
     `;
+
+    resultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function getSeverityColor(severity) {
@@ -109,35 +181,26 @@ function getSeverityColor(severity) {
     }
 }
 
-function addRecentPrediction(result) {
-    const now = new Date().toLocaleTimeString();
-    recentPredictions.unshift({
-        time: now,
-        prediction: result.prediction,
-        confidence: result.confidence,
-        is_attack: result.is_attack
-    });
-
-    // Keep only last 5
-    if (recentPredictions.length > 5) {
-        recentPredictions = recentPredictions.slice(0, 5);
-    }
-
-    // Update display
-    const container = document.getElementById('recent-predictions');
-    container.innerHTML = recentPredictions.map(p => `
-        <div class="mb-2 p-2 ${p.is_attack ? 'bg-danger-subtle' : 'bg-success-subtle'} rounded">
-            <small>
-                <strong>${p.time}</strong> - ${p.prediction} 
-                (${(p.confidence * 100).toFixed(1)}%)
-            </small>
-        </div>
-    `).join('');
-}
-
-// Load model info when page loads
+// Initialize on page load
 window.addEventListener('DOMContentLoaded', () => {
-    loadModelInfo();
+    startPolling();
     console.log('IDS-ML Dashboard loaded');
+    console.log('Auto-refresh: Every 2 seconds');
     console.log('API URL:', API_URL);
+});
+
+// Stop polling when page unloads
+window.addEventListener('beforeunload', () => {
+    stopPolling();
+});
+
+// Handle visibility change (pause when tab is hidden)
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        stopPolling();
+        console.log('Polling paused (tab hidden)');
+    } else {
+        startPolling();
+        console.log('Polling resumed (tab visible)');
+    }
 });

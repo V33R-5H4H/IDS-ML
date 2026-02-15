@@ -1,6 +1,5 @@
 """
-FastAPI Main Application for IDS-ML System
-Clean version - No warnings
+FastAPI Main Application with Stats Tracking
 """
 
 from fastapi import FastAPI, HTTPException
@@ -10,15 +9,22 @@ from typing import List
 from contextlib import asynccontextmanager
 import sys
 from pathlib import Path
+from datetime import datetime
 
-# Add project root to path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from backend.config import config
 from scripts.predict import IDSPredictor
 
-# Initialize predictor globally
+# Global variables
 predictor = None
+prediction_history = []
+stats_counter = {
+    "total_predictions": 0,
+    "attacks_detected": 0,
+    "normal_traffic": 0,
+    "last_updated": None
+}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -35,11 +41,8 @@ async def lifespan(app: FastAPI):
         raise
 
     yield
-
-    # Cleanup on shutdown
     print("Shutting down API...")
 
-# Initialize FastAPI app with lifespan
 app = FastAPI(
     title=config.API_TITLE,
     version=config.API_VERSION,
@@ -47,7 +50,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.CORS_ORIGINS,
@@ -56,7 +58,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Pydantic models for request/response
 class FlowFeatures(BaseModel):
     """Network flow features for prediction"""
     duration: int = Field(default=0, description="Duration of connection in seconds")
@@ -98,10 +99,9 @@ class PredictionResponse(BaseModel):
     is_attack: bool
     severity: str
     version: str
+    timestamp: str = None
 
-    model_config = {
-        "protected_namespaces": ()
-    }
+    model_config = {"protected_namespaces": ()}
 
 class ModelInfo(BaseModel):
     """Model information"""
@@ -109,12 +109,16 @@ class ModelInfo(BaseModel):
     accuracy: float
     version: str
     features: List[str]
+    model_config = {"protected_namespaces": ()}
 
-    model_config = {
-        "protected_namespaces": ()
-    }
+class SystemStats(BaseModel):
+    """System statistics"""
+    total_predictions: int
+    attacks_detected: int
+    normal_traffic: int
+    model_accuracy: float
+    last_updated: str = None
 
-# API Endpoints
 @app.get("/")
 async def root():
     """Root endpoint"""
@@ -148,14 +152,13 @@ async def get_model_info():
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(features: FlowFeatures):
     """Make prediction on network flow"""
+    global prediction_history, stats_counter
+
     if predictor is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
     try:
-        # Convert to dict using model_dump (Pydantic V2)
         feature_dict = features.model_dump()
-
-        # Make prediction
         result = predictor.predict_raw(feature_dict)
 
         # Determine severity
@@ -168,31 +171,75 @@ async def predict(features: FlowFeatures):
         else:
             severity = "Low"
 
-        return PredictionResponse(
+        # Create response
+        response = PredictionResponse(
             prediction=result['prediction'],
             confidence=result['confidence'],
             is_attack=result['is_attack'],
             severity=severity,
-            version=config.API_VERSION
+            version=config.API_VERSION,
+            timestamp=datetime.now().isoformat()
         )
+
+        # Update stats
+        stats_counter["total_predictions"] += 1
+        if result['is_attack']:
+            stats_counter["attacks_detected"] += 1
+        else:
+            stats_counter["normal_traffic"] += 1
+        stats_counter["last_updated"] = datetime.now().isoformat()
+
+        # Add to history (keep last 50)
+        prediction_history.append({
+            "timestamp": response.timestamp,
+            "prediction": response.prediction,
+            "confidence": response.confidence,
+            "is_attack": response.is_attack,
+            "severity": severity
+        })
+        if len(prediction_history) > 50:
+            prediction_history = prediction_history[-50:]
+
+        return response
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
 
-@app.get("/stats")
+@app.get("/stats", response_model=SystemStats)
 async def get_stats():
-    """Get system statistics"""
+    """Get system statistics with prediction counts"""
     if predictor is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
+    return SystemStats(
+        total_predictions=stats_counter["total_predictions"],
+        attacks_detected=stats_counter["attacks_detected"],
+        normal_traffic=stats_counter["normal_traffic"],
+        model_accuracy=predictor.metadata['accuracy'],
+        last_updated=stats_counter["last_updated"]
+    )
+
+@app.get("/history")
+async def get_history():
+    """Get recent prediction history"""
     return {
-        "model_accuracy": predictor.metadata['accuracy'],
-        "n_estimators": predictor.metadata.get('n_estimators', 'N/A'),
-        "features_count": len(predictor.feature_names),
-        "attack_types": len(predictor.label_encoder_target.classes_)
+        "count": len(prediction_history),
+        "predictions": prediction_history[-20:]  # Last 20
     }
 
-# Run with: uvicorn backend.main:app --reload
+@app.post("/reset-stats")
+async def reset_stats():
+    """Reset statistics (for testing)"""
+    global stats_counter, prediction_history
+    stats_counter = {
+        "total_predictions": 0,
+        "attacks_detected": 0,
+        "normal_traffic": 0,
+        "last_updated": datetime.now().isoformat()
+    }
+    prediction_history = []
+    return {"message": "Stats reset successfully"}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=config.API_HOST, port=config.API_PORT)
