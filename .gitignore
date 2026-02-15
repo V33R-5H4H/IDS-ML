@@ -60,7 +60,6 @@ logs/
 
 # OS specific
 Thumbs.db
-.DS_Store
 
 # Temporary files
 *.tmp
@@ -69,6 +68,43 @@ coverage/
 
 # Build artifacts
 node_modules/
-dist/
 *.class
 *.jar
+
+# Python
+ENV/
+
+# ML Models (Large files)
+!models/.gitkeep
+
+# Data
+data/*.csv
+data/*.pcap
+data/*.pcapng
+data/kddcup.data*
+!data/.gitkeep
+
+# Database
+*.sqlite3
+ids_pro.db
+
+# Environment variables
+config/secrets.py
+
+# Docker
+docker-compose.override.yml
+
+# Temporary files
+tmp/
+temp/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Jupyter Notebooks
+*.ipynb
+
+# Package managers
+package-lock.json
