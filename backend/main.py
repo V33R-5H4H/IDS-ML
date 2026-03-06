@@ -12,7 +12,7 @@ from backend.database import create_tables, get_db
 from backend.models import User
 from backend.auth import (
     authenticate_user, create_access_token,
-    hash_password, get_current_user,
+    hash_password, verify_password, get_current_user,
     Token, UserCreate, UserOut, require_roles
 )
 
@@ -23,7 +23,6 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="IDS-ML v2.0 API", version="2.0.0", lifespan=lifespan)
-
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
     allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -57,19 +56,41 @@ async def health():
 # AUTH
 # ══════════════════════════════════════════════════════════════════════════════
 @app.post("/login", response_model=Token, tags=["Auth"])
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = authenticate_user(db, form_data.username, form_data.password)
-    if not user:
-        raise HTTPException(status_code=401, detail="Incorrect username or password",
-                            headers={"WWW-Authenticate": "Bearer"})
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)
+):
+    """
+    Login flow:
+      401 → wrong username / password
+      403 → correct credentials but account is deactivated
+    """
+    # Step 1 — find user
+    user = db.query(User).filter(User.username == form_data.username).first()
+
+    # Step 2 — wrong credentials
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Step 3 — account deactivated (correct creds, blocked account)
+    if not user.is_active:
+        raise HTTPException(
+            status_code=403,
+            detail="ACCOUNT_DEACTIVATED",
+        )
+
     user.last_login = datetime.utcnow()
     db.commit()
     token = create_access_token(data={"sub": user.username})
     return {"access_token": token, "token_type": "bearer"}
 
+
 @app.post("/register", tags=["Auth"], status_code=201)
 async def public_register(data: PublicRegister, db: Session = Depends(get_db)):
-    """Self-registration — always creates a viewer role."""
     if db.query(User).filter(User.username == data.username).first():
         raise HTTPException(status_code=400, detail="Username already taken")
     if db.query(User).filter(User.email == data.email).first():
@@ -80,8 +101,9 @@ async def public_register(data: PublicRegister, db: Session = Depends(get_db)):
                 hashed_password=hash_password(data.password),
                 role="viewer", is_active=True)
     db.add(user); db.commit(); db.refresh(user)
-    return {"message": "Account created! You have been assigned the viewer role. Contact an admin for elevated access.",
+    return {"message": "Account created! You have been assigned the viewer role.",
             "username": user.username, "role": user.role}
+
 
 @app.get("/me", response_model=UserOut, tags=["Auth"])
 async def get_me(current_user: User = Depends(get_current_user)):
@@ -121,7 +143,7 @@ async def change_role(user_id: int, data: RoleUpdate, db: Session = Depends(get_
     if not user: raise HTTPException(status_code=404, detail="User not found")
     if user.id == me.id: raise HTTPException(status_code=400, detail="Cannot change your own role")
     old = user.role; user.role = data.role; db.commit()
-    return {"message": f"'{user.username}' role changed: {old} → {data.role}"}
+    return {"message": f"'{user.username}' role changed: {old} -> {data.role}"}
 
 @app.patch("/admin/users/{user_id}/activate", tags=["Admin"])
 async def activate_user(user_id: int, db: Session = Depends(get_db),

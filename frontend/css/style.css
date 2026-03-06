@@ -639,3 +639,135 @@ body { font-family: "Inter", "Segoe UI", system-ui, sans-serif; }
   color: var(--text-muted); font-size: 0.75rem; font-weight: 700;
   padding: 3px 10px; border-radius: 20px; margin-left: 8px;
 }
+
+/* ═══════════════════════════════════════════════
+   DEACTIVATED ACCOUNT POPUP
+   ═══════════════════════════════════════════════ */
+
+/* Overlay */
+.deact-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.3s ease;
+  padding: 20px;
+}
+.deact-overlay.visible { opacity: 1; }
+.deact-overlay.hiding  { opacity: 0; pointer-events: none; }
+
+/* Modal box */
+.deact-modal {
+  background: var(--bg-card);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 18px;
+  padding: 36px 32px 28px;
+  max-width: 400px; width: 100%;
+  text-align: center;
+  box-shadow:
+    0 0 0 1px rgba(239,68,68,0.15),
+    0 24px 60px rgba(0, 0, 0, 0.6),
+    0 0 80px rgba(239, 68, 68, 0.08);
+  transform: translateY(0); transition: transform 0.3s ease;
+  position: relative;
+}
+.deact-overlay.visible .deact-modal  { transform: translateY(0); }
+.deact-overlay:not(.visible) .deact-modal { transform: translateY(24px); }
+
+/* Animated icon ring */
+.deact-icon-wrap {
+  position: relative;
+  width: 80px; height: 80px;
+  margin: 0 auto 20px;
+  display: flex; align-items: center; justify-content: center;
+}
+.deact-icon-ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  border: 2px solid rgba(239, 68, 68, 0.4);
+  animation: deact-pulse 2s ease infinite;
+}
+@keyframes deact-pulse {
+  0%, 100% { transform: scale(1);    opacity: 0.6; }
+  50%       { transform: scale(1.12); opacity: 0.2; }
+}
+.deact-icon {
+  font-size: 2.2rem; color: var(--danger);
+  filter: drop-shadow(0 0 12px rgba(239,68,68,0.5));
+  position: relative; z-index: 1;
+  background: rgba(239,68,68,0.1);
+  width: 72px; height: 72px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Title */
+.deact-title {
+  font-size: 1.3rem; font-weight: 800;
+  color: var(--text-main); margin-bottom: 4px;
+}
+
+/* Username */
+.deact-username {
+  font-size: 0.85rem; color: var(--danger);
+  font-weight: 700; margin-bottom: 14px;
+  font-family: monospace; letter-spacing: 0.5px;
+}
+
+/* Body text */
+.deact-body {
+  color: var(--text-muted); font-size: 0.88rem;
+  line-height: 1.6; margin-bottom: 18px;
+}
+
+/* Info box */
+.deact-info-box {
+  background: rgba(239,68,68,0.07);
+  border: 1px solid rgba(239,68,68,0.2);
+  border-radius: 10px; padding: 12px 14px;
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: 0.82rem; color: #fca5a5;
+  margin-bottom: 22px; text-align: left;
+}
+.deact-info-box i { flex-shrink: 0; margin-top: 2px; font-size: 0.9rem; }
+
+/* Action buttons */
+.deact-actions {
+  display: flex; gap: 10px; justify-content: center;
+  margin-bottom: 18px;
+}
+.deact-btn-email {
+  flex: 1; padding: 10px 16px; border-radius: 10px;
+  background: rgba(37,99,235,0.12);
+  border: 1px solid rgba(37,99,235,0.3);
+  color: #93c5fd; font-size: 0.85rem; font-weight: 600;
+  text-decoration: none; cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex; align-items: center; justify-content: center;
+}
+.deact-btn-email:hover {
+  background: rgba(37,99,235,0.22);
+  color: #bfdbfe; text-decoration: none;
+}
+.deact-btn-close {
+  flex: 1; padding: 10px 16px; border-radius: 10px;
+  background: rgba(239,68,68,0.1);
+  border: 1px solid rgba(239,68,68,0.25);
+  color: #fca5a5; font-size: 0.85rem; font-weight: 600;
+  cursor: pointer; transition: all 0.2s ease;
+  display: flex; align-items: center; justify-content: center;
+}
+.deact-btn-close:hover { background: rgba(239,68,68,0.2); }
+
+/* Footer note */
+.deact-footer {
+  font-size: 0.72rem; color: var(--text-muted);
+  margin: 0; opacity: 0.6;
+}
+
+/* Divider line above footer */
+.deact-modal::after {
+  content: '';
+  display: block;
+  height: 1px;
+  background: var(--border);
+  margin: 0 0 14px;
+}
