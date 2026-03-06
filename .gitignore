@@ -108,3 +108,8 @@ htmlcov/
 
 # Package managers
 package-lock.json
+/docs/GIT_WORKFLOW_v2.0.md
+/docs/PHASE1_PCAP_UI.md
+/docs/PHASE2_ML_ENHANCEMENT.md
+/docs/PHASE3_PRODUCTION.md
+/docs/PHASE4_ENTERPRISE.md
