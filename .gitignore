@@ -14,8 +14,8 @@ venv/
 env/
 .venv/
 .env/
-.ids1.0_backend/
-backend/.ids1.0_backend/
+ids2.0_backend/
+backend/ids2.0_backend/
 
 # IDE
 .vscode/
