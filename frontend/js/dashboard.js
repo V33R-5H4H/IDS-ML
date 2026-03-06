@@ -66,25 +66,63 @@ const STAT_DEFS = {
 // INIT
 // ══════════════════════════════════════════════════════════════════════════════
 document.addEventListener("DOMContentLoaded", async () => {
-  if (!Auth.requireAuth()) return;
-  currentUser = await API.me();
-  if (!currentUser) { logout(); return; }
+  try {
+    if (!Auth.requireAuth()) return;
 
-  const role = currentUser.role;
-  const cfg  = ROLES[role] || ROLES.viewer;
+    // Show what API_BASE we're using
+    console.log("[IDS-ML] API_BASE =", typeof API_BASE !== "undefined" ? API_BASE : "UNDEFINED");
 
-  buildRoleBanner(cfg);
-  buildSidebar(cfg);
-  buildStatCards(cfg);
-  renderTopbarUser(currentUser);
-  setupNavigation(cfg);
+    currentUser = await API.me();
+    console.log("[IDS-ML] currentUser =", currentUser);
 
-  await loadDashboardCards(cfg, role);
-  renderProfileCard(currentUser);
-  await checkAPIHealth();
+    if (!currentUser) {
+      console.error("[IDS-ML] API.me() returned null — token may be expired or backend unreachable");
+      // Show visible error instead of silently blanking
+      document.body.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:center;height:100vh;
+                    background:#0f1117;flex-direction:column;gap:16px">
+          <div style="font-size:2rem">⚠️</div>
+          <div style="color:#f87171;font-size:1.1rem;font-weight:600">Could not load user session</div>
+          <div style="color:#94a3b8;font-size:.88rem">
+            Backend: <code style="color:#60a5fa">${typeof API_BASE !== "undefined" ? API_BASE : "unknown"}</code>
+          </div>
+          <div style="color:#94a3b8;font-size:.85rem">Check that the backend is running on the correct port.</div>
+          <a href="index.html" style="margin-top:8px;padding:10px 24px;background:#3b82f6;
+             color:#fff;border-radius:8px;text-decoration:none;font-weight:600">
+            ← Back to Login
+          </a>
+        </div>`;
+      return;
+    }
 
-  // Admin: load pending request count for badge
-  if (role === "admin") loadPendingReqBadge();
+    const role = currentUser.role;
+    const cfg  = ROLES[role] || ROLES.viewer;
+
+    buildRoleBanner(cfg);
+    buildSidebar(cfg);
+    buildStatCards(cfg);
+    renderTopbarUser(currentUser);
+    setupNavigation(cfg);
+
+    await loadDashboardCards(cfg, role);
+    renderProfileCard(currentUser);
+    await checkAPIHealth();
+
+    if (role === "admin") loadPendingReqBadge();
+
+  } catch(err) {
+    console.error("[IDS-ML] Dashboard init error:", err);
+    document.body.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:center;height:100vh;
+                  background:#0f1117;flex-direction:column;gap:16px;padding:24px">
+        <div style="font-size:2rem">💥</div>
+        <div style="color:#f87171;font-size:1.1rem;font-weight:600">Dashboard Error</div>
+        <pre style="color:#fbbf24;background:#1e2330;padding:16px;border-radius:8px;
+                    font-size:.78rem;max-width:700px;overflow:auto;white-space:pre-wrap">${err.stack || err.message}</pre>
+        <a href="index.html" style="padding:10px 24px;background:#3b82f6;color:#fff;
+           border-radius:8px;text-decoration:none;font-weight:600">← Back to Login</a>
+      </div>`;
+  }
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -326,7 +364,10 @@ function navigateTo(section, cfg) {
   };
   document.getElementById("pageTitle").textContent = titles[section] || section;
   if (section === "users")    loadUsers();
-  if (section === "requests") loadRoleRequests("pending");
+  if (section === "requests") {
+    loadRoleRequests("pending");
+    loadPasswordResets();
+  }
   if (section === "health")   checkAPIHealth();
   if (section === "account")  initAccountSection(currentUser);
 }
@@ -670,4 +711,127 @@ function showToast(msg, type = "success") {
   document.getElementById("toastMsg").textContent = msg;
   el.className = `ids-toast ${type}`;
   setTimeout(() => { el.className = "ids-toast d-none"; }, 3500);
+}
+
+
+// ── Password Reset Requests (admin) ──────────────────────────────────────────
+let _pendingResolveId = null;
+
+async function loadPasswordResets() {
+  const wrap   = document.getElementById("pwdResetTable");
+  const badge  = document.getElementById("pwdResetBadge");
+  if (!wrap) return;
+
+  let res;
+  try {
+    res = await API.getPasswordResets();
+  } catch(e) {
+    wrap.innerHTML = `<p style="color:#f87171;padding:12px"><i class="bi bi-exclamation-triangle me-2"></i>Error: ${e.message}</p>`;
+    return;
+  }
+  if (!res) {
+    wrap.innerHTML = `<p style="color:#f87171;padding:12px"><i class="bi bi-exclamation-triangle me-2"></i>Could not reach server. Check backend is running.</p>`;
+    return;
+  }
+  if (!res.ok) {
+    let errMsg = "Request failed";
+    try { const d = await res.json(); errMsg = d.detail || errMsg; } catch {}
+    wrap.innerHTML = `<p style="color:#f87171;padding:12px"><i class="bi bi-exclamation-triangle me-2"></i>${res.status}: ${errMsg}</p>`;
+    return;
+  }
+  const reqs = await res.json();
+  const pending = reqs.filter(r => r.status === "pending");
+
+  if (badge) {
+    if (pending.length > 0) {
+      badge.textContent  = pending.length;
+      badge.style.display = "inline-block";
+    } else {
+      badge.style.display = "none";
+    }
+  }
+
+  if (reqs.length === 0) {
+    wrap.innerHTML = `<p style="color:var(--text-muted);padding:12px;font-size:.88rem">
+      <i class="bi bi-check-circle me-2 text-success"></i>No password reset requests.</p>`;
+    return;
+  }
+
+  const rows = reqs.map(r => `
+    <tr class="req-row ${r.status}">
+      <td><strong>${r.username}</strong><br>
+          <span style="color:var(--text-muted);font-size:.78rem">${r.email}</span></td>
+      <td style="font-size:.82rem;color:var(--text-muted)">${r.reason || "—"}</td>
+      <td><span class="req-pill ${r.status}">${r.status}</span></td>
+      <td style="font-size:.78rem;color:var(--text-muted)">
+        ${new Date(r.created_at).toLocaleString("en-IN")}</td>
+      <td>
+        ${r.status === "pending" ? `
+          <button class="btn-action approve"
+            onclick="openResolveModal(${r.id},'${r.username}')">
+            <i class="bi bi-key-fill me-1"></i>Set Password
+          </button>
+          <button class="btn-action reject"
+            onclick="dismissReset(${r.id})">
+            Dismiss
+          </button>` : `
+          <span style="color:var(--text-muted);font-size:.78rem">
+            ${r.resolved_by ? `By ${r.resolved_by}` : "—"}
+          </span>`}
+      </td>
+    </tr>`).join("");
+
+  wrap.innerHTML = `
+    <table class="requests-table">
+      <thead><tr>
+        <th>User</th><th>Reason</th><th>Status</th><th>Requested</th><th>Action</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function openResolveModal(id, username) {
+  _pendingResolveId = id;
+  document.getElementById("resolveModalUser").textContent =
+    `Setting new password for: ${username}`;
+  document.getElementById("resolvePwd").value = "";
+  document.getElementById("resolveAlert").style.display = "none";
+  const m = document.getElementById("resolveModal");
+  m.style.display = "flex";
+  setTimeout(() => document.getElementById("resolvePwd").focus(), 100);
+}
+
+function closeResolveModal() {
+  document.getElementById("resolveModal").style.display = "none";
+  _pendingResolveId = null;
+}
+
+async function confirmResolve() {
+  const pwd     = document.getElementById("resolvePwd").value;
+  const alertEl = document.getElementById("resolveAlert");
+  const btn     = document.getElementById("resolveBtn");
+
+  if (!pwd || pwd.length < 6) {
+    alertEl.textContent = "Password must be at least 6 characters.";
+    alertEl.style.cssText = "display:block;background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3);padding:8px 12px;border-radius:7px;font-size:.82rem";
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = "⏳ Saving...";
+  const res = await API.resolvePasswordReset(_pendingResolveId, pwd);
+  if (res && res.ok) {
+    closeResolveModal();
+    await loadPasswordResets();
+  } else {
+    const d = await res?.json().catch(() => ({}));
+    alertEl.textContent = d?.detail || "Failed to set password.";
+    alertEl.style.cssText = "display:block;background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3);padding:8px 12px;border-radius:7px;font-size:.82rem";
+    btn.disabled = false; btn.textContent = "✅ Set Password & Resolve";
+  }
+}
+
+async function dismissReset(id) {
+  if (!confirm("Dismiss this reset request?")) return;
+  await API.dismissPasswordReset(id);
+  await loadPasswordResets();
 }

@@ -172,6 +172,55 @@
           </div>
         </div>
       </div>
+    
+      <!-- ── Password Reset Requests ──────────────────────────────────────── -->
+      <div class="table-card" style="margin-top:28px">
+        <div class="table-card-header">
+          <span>
+            <i class="bi bi-key-fill me-2" style="color:#f59e0b"></i>
+            Password Reset Requests
+            <span id="pwdResetBadge"
+                  style="display:none;background:#ef4444;color:#fff;border-radius:9999px;
+                         padding:1px 8px;font-size:.72rem;margin-left:6px;font-weight:700"></span>
+          </span>
+        </div>
+        <div style="padding:16px" id="pwdResetTable">
+          <div style="text-align:center;padding:24px;color:var(--text-muted)">
+            <div class="spinner-border text-warning spinner-border-sm"></div> Loading...
+          </div>
+        </div>
+      </div>
+
+      <!-- Set Temp Password Modal -->
+      <div id="resolveModal" style="display:none;position:fixed;inset:0;z-index:9999;
+           background:rgba(0,0,0,.65);backdrop-filter:blur(4px);
+           align-items:center;justify-content:center">
+        <div style="background:var(--card-bg,#1a1f2e);border:1px solid rgba(255,255,255,.1);
+                    border-radius:14px;padding:28px;width:100%;max-width:400px;
+                    position:relative;margin:16px">
+          <button onclick="closeResolveModal()" style="position:absolute;top:10px;right:14px;
+                  background:none;border:none;color:#888;font-size:1.4rem;cursor:pointer">×</button>
+          <h4 style="color:#f1f5f9;margin:0 0 6px">
+            <i class="bi bi-key-fill me-2" style="color:#f59e0b"></i>Set Temporary Password
+          </h4>
+          <p id="resolveModalUser" style="color:#94a3b8;font-size:.84rem;margin:0 0 16px"></p>
+          <div id="resolveAlert" style="display:none;padding:8px 12px;border-radius:7px;
+               font-size:.82rem;margin-bottom:12px"></div>
+          <input id="resolvePwd" type="password"
+                 placeholder="New temporary password (min. 6 chars)"
+                 style="width:100%;padding:10px 14px;background:rgba(255,255,255,.06);
+                        border:1px solid rgba(255,255,255,.12);border-radius:8px;
+                        color:#f1f5f9;font-size:.9rem;outline:none;
+                        box-sizing:border-box;margin-bottom:14px"
+                 onkeydown="if(event.key==='Enter')confirmResolve()"/>
+          <button id="resolveBtn" onclick="confirmResolve()"
+                  style="width:100%;padding:11px;border:none;border-radius:9px;
+                         background:linear-gradient(135deg,#22c55e,#16a34a);
+                         color:#fff;font-weight:600;font-size:.92rem;cursor:pointer">
+            &#10003; Set Password &amp; Resolve
+          </button>
+        </div>
+      </div>
     </section>
 
     <!-- ══ HEALTH (admin) ══ -->
@@ -301,43 +350,15 @@
           </div>
         </div>
 
-        <!-- ── Request Access Upgrade (full width) ── -->
-        <div class="acc-card acc-card-full">
+        <!-- ── Request Access Upgrade — rendered dynamically by account.js ── -->
+        <div class="acc-card acc-card-full" id="acc_roleReqCard">
+          <!-- content injected by initAccountSection() based on user role -->
           <div class="acc-card-header">
             <i class="bi bi-person-up" style="color:#f59e0b"></i> Request Access Upgrade
           </div>
           <div class="acc-card-body">
-            <div class="row g-4">
-              <!-- Form -->
-              <div class="col-md-6">
-                <div id="acc_alert_role" class="alert-area d-none mb-3"></div>
-                <div class="acc-form-group">
-                  <label>Requested Role</label>
-                  <select id="req_role" class="acc-select">
-                    <option value="">— Select a role —</option>
-                    <option value="analyst">Analyst — Detection + PCAP upload</option>
-                    <option value="admin">Admin — Full system access</option>
-                  </select>
-                </div>
-                <div class="acc-form-group">
-                  <label>Reason / Justification <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
-                  <textarea id="req_reason" class="acc-textarea"
-                    placeholder="Briefly explain why you need elevated access..."></textarea>
-                </div>
-                <button class="btn-acc-save" id="btn_submitReq" onclick="submitRoleRequest()"
-                        style="background:linear-gradient(135deg,#f59e0b,#d97706)">
-                  <i class="bi bi-send-fill"></i>Submit Request
-                </button>
-              </div>
-              <!-- Current request status -->
-              <div class="col-md-6">
-                <label class="acc-form-group" style="font-size:0.78rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;display:block">
-                  Current Request Status
-                </label>
-                <div id="roleReqStatus">
-                  <div class="req-none"><i class="bi bi-info-circle me-2"></i>Loading...</div>
-                </div>
-              </div>
+            <div class="req-none">
+              <span class="spinner-border spinner-border-sm me-2"></span>Loading...
             </div>
           </div>
         </div>
@@ -368,9 +389,10 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="js/auth.js"></script>
-  <script src="js/api.js"></script>
-  <script src="js/account.js"></script>
-  <script src="js/dashboard.js"></script>
+  <script src="js/config.js?v=1772805966"></script>
+  <script src="js/auth.js?v=1772805966"></script>
+  <script src="js/api.js?v=1772805966"></script>
+  <script src="js/account.js?v=1772805966"></script>
+  <script src="js/dashboard.js?v=1772805966"></script>
 </body>
 </html>

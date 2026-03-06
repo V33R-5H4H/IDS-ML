@@ -252,3 +252,20 @@
 #reqListEmpty {
   text-align: center; padding: 32px; color: var(--text-muted); font-size: 0.9rem;
 }
+
+/* ── Admin account notice (replaces role request section) ── */
+.req-admin-notice {
+  display: flex; align-items: flex-start; gap: 14px;
+  background: rgba(37,99,235,0.07);
+  border: 1px solid rgba(37,99,235,0.2);
+  border-radius: 12px; padding: 18px 20px;
+}
+.req-admin-notice i {
+  font-size: 1.6rem; color: #60a5fa; flex-shrink: 0; margin-top: 2px;
+}
+.req-admin-notice strong {
+  display: block; color: var(--text-main); font-size: 0.92rem; margin-bottom: 4px;
+}
+.req-admin-notice p {
+  color: var(--text-muted); font-size: 0.84rem; margin: 0;
+}

@@ -9,8 +9,8 @@ from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional
 
-from backend.database import create_tables, get_db
-from backend.models import User, RoleRequest
+from backend.database import create_tables, get_db, verify_connection
+from backend.models import User, RoleRequest, PasswordResetRequest
 from backend.auth import (
     create_access_token, hash_password, verify_password,
     get_current_user, Token, UserOut, require_roles
@@ -48,14 +48,18 @@ def seed_default_admin(db):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    create_tables()
-    # Seed default admin (only runs if DB is empty)
-    db = next(get_db())
     try:
-        seed_default_admin(db)
-    finally:
-        db.close()
-    print("IDS-ML v2.0 API started!")
+        verify_connection()
+        create_tables()
+        db = next(get_db())
+        try:
+            seed_default_admin(db)
+        finally:
+            db.close()
+        print("IDS-ML v2.0 API started! ✅")
+    except Exception as e:
+        print(f"[STARTUP] ❌ Error during startup: {e}")
+        print("[STARTUP] API will continue but DB features may not work.")
     yield
 
 app = FastAPI(title="IDS-ML v2.0 API", version="2.0.0", lifespan=lifespan)
@@ -92,6 +96,13 @@ class AdminCreateUser(BaseModel):
 class ResetPassword(BaseModel):
     new_password: str
 
+class ForgotPasswordRequest(BaseModel):
+    identifier: str          # username or email
+    reason: Optional[str] = ""
+
+class AdminResolveReset(BaseModel):
+    new_password: str
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def user_dict(u):
     return {"id":u.id,"username":u.username,"email":u.email,
@@ -113,7 +124,12 @@ async def health():
 @app.post("/login", response_model=Token, tags=["Auth"])
 async def login(form_data: OAuth2PasswordRequestForm = Depends(),
                 db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == form_data.username).first()
+    identifier = form_data.username.strip()
+    # Accept username OR email
+    user = (
+        db.query(User).filter(User.username == identifier).first() or
+        db.query(User).filter(User.email    == identifier).first()
+    )
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Incorrect username or password",
                             headers={"WWW-Authenticate":"Bearer"})
@@ -205,6 +221,98 @@ async def my_role_request(db: Session = Depends(get_db),
             "current_role":req.current_role,"reason":req.reason,
             "status":req.status,"created_at":str(req.created_at),
             "reviewed_by":req.reviewed_by,"reviewed_at":str(req.reviewed_at) if req.reviewed_at else None}}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# FORGOT PASSWORD  (public — no auth required)
+# ══════════════════════════════════════════════════════════════════════════════
+@app.post("/forgot-password", tags=["Auth"], status_code=201)
+async def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """Submit a password reset request — admin will be notified to set a new password."""
+    identifier = data.identifier.strip()
+    user = (
+        db.query(User).filter(User.username == identifier).first() or
+        db.query(User).filter(User.email    == identifier).first()
+    )
+    if not user:
+        # Return success anyway to prevent username/email enumeration
+        return {"message": "If that account exists, a reset request has been submitted."}
+
+    # Limit: 1 pending reset request per user
+    existing = db.query(PasswordResetRequest).filter(
+        PasswordResetRequest.user_id == user.id,
+        PasswordResetRequest.status  == "pending"
+    ).first()
+    if existing:
+        return {"message": "A reset request is already pending. Please wait for admin to process it."}
+
+    req = PasswordResetRequest(
+        user_id  = user.id,
+        username = user.username,
+        email    = user.email,
+        reason   = data.reason or ""
+    )
+    db.add(req); db.commit(); db.refresh(req)
+    return {"message": "Reset request submitted. An administrator will set a new temporary password for you."}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ADMIN — PASSWORD RESET MANAGEMENT
+# ══════════════════════════════════════════════════════════════════════════════
+@app.get("/admin/password-resets", tags=["Admin"])
+async def list_reset_requests(db: Session = Depends(get_db),
+                               _=Depends(require_roles("admin"))):
+    """List all password reset requests."""
+    reqs = db.query(PasswordResetRequest).order_by(
+        PasswordResetRequest.created_at.desc()).all()
+    return [{
+        "id":          r.id,
+        "user_id":     r.user_id,
+        "username":    r.username,
+        "email":       r.email,
+        "reason":      r.reason,
+        "status":      r.status,
+        "created_at":  str(r.created_at),
+        "resolved_at": str(r.resolved_at) if r.resolved_at else None,
+        "resolved_by": r.resolved_by,
+    } for r in reqs]
+
+@app.post("/admin/password-resets/{req_id}/resolve", tags=["Admin"])
+async def resolve_reset(req_id: int, data: AdminResolveReset,
+                        db: Session = Depends(get_db),
+                        me: User = Depends(require_roles("admin"))):
+    """Admin sets a new temporary password for the user."""
+    req = db.query(PasswordResetRequest).filter(PasswordResetRequest.id == req_id).first()
+    if not req:
+        raise HTTPException(404, "Reset request not found")
+    if req.status != "pending":
+        raise HTTPException(400, f"Request already {req.status}")
+
+    user = db.query(User).filter(User.id == req.user_id).first()
+    if not user:
+        raise HTTPException(404, "User not found")
+    if len(data.new_password) < 6:
+        raise HTTPException(400, "Password must be at least 6 characters")
+
+    user.hashed_password = hash_password(data.new_password)
+    req.status      = "resolved"
+    req.resolved_at = datetime.utcnow()
+    req.resolved_by = me.username
+    db.commit()
+    return {"message": f"Password reset for '{user.username}'. New temp password set."}
+
+@app.post("/admin/password-resets/{req_id}/dismiss", tags=["Admin"])
+async def dismiss_reset(req_id: int, db: Session = Depends(get_db),
+                        me: User = Depends(require_roles("admin"))):
+    """Admin dismisses a reset request without changing password."""
+    req = db.query(PasswordResetRequest).filter(PasswordResetRequest.id == req_id).first()
+    if not req:
+        raise HTTPException(404, "Reset request not found")
+    req.status      = "dismissed"
+    req.resolved_at = datetime.utcnow()
+    req.resolved_by = me.username
+    db.commit()
+    return {"message": "Request dismissed."}
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ADMIN — USER MANAGEMENT

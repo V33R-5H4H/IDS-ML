@@ -28,7 +28,7 @@
       <form id="loginForm" autocomplete="off">
         <div class="input-group-custom">
           <label class="form-label-custom"><i class="bi bi-person me-1"></i>Username</label>
-          <input type="text" id="username" class="form-input-custom"
+          <input type="text" id="username" placeholder="Username or email address" class="form-input-custom"
                  placeholder="Enter username" autocomplete="off"/>
         </div>
 
@@ -42,6 +42,17 @@
               <i id="eyeIcon" class="bi bi-eye"></i>
             </button>
           </div>
+        </div>
+
+        <!-- Forgot password link -->
+        <div style="text-align:right;margin-bottom:10px;margin-top:-4px">
+          <a href="#" onclick="showForgotModal(event)"
+             style="font-size:0.8rem;color:#60a5fa;text-decoration:none;opacity:.9;
+                    transition:opacity .2s"
+             onmouseover="this.style.opacity=1"
+             onmouseout="this.style.opacity=.9">
+            🔑 Forgot password?
+          </a>
         </div>
 
         <label class="remember-label mt-1 mb-3">
@@ -87,7 +98,138 @@
     </div>
   </div>
 
-  <script src="js/auth.js"></script>
-  <script src="js/login.js"></script>
+  <script src="js/config.js?v=1772805966"></script>
+  <script src="js/auth.js?v=1772805966"></script>
+  <script src="js/login.js?v=1772805966"></script>
+
+  <!-- ══ Forgot Password Modal ══ -->
+  <div id="forgotModal" style="display:none;position:fixed;inset:0;z-index:9999;
+       background:rgba(0,0,0,.65);backdrop-filter:blur(4px);
+       display:none;align-items:center;justify-content:center">
+    <div style="background:var(--card-bg,#1a1f2e);border:1px solid rgba(255,255,255,.1);
+                border-radius:16px;padding:32px;width:100%;max-width:420px;
+                box-shadow:0 24px 60px rgba(0,0,0,.6);position:relative">
+
+      <!-- close -->
+      <button onclick="hideForgotModal()" style="position:absolute;top:12px;right:16px;
+              background:none;border:none;color:#888;font-size:1.4rem;cursor:pointer;
+              line-height:1">×</button>
+
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:2rem;margin-bottom:8px">🔑</div>
+        <h3 style="color:#f1f5f9;font-size:1.15rem;margin:0 0 4px">Forgot Password?</h3>
+        <p style="color:#94a3b8;font-size:.83rem;margin:0">
+          Submit a request — an admin will set a temporary password for you.
+        </p>
+      </div>
+
+      <div id="forgotAlert" style="display:none;padding:10px 14px;border-radius:8px;
+           font-size:.84rem;margin-bottom:14px;text-align:center"></div>
+
+      <div style="margin-bottom:14px">
+        <label style="font-size:.75rem;font-weight:700;color:#94a3b8;
+               text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px">
+          Username or Email
+        </label>
+        <input id="forgotIdentifier" type="text" placeholder="Enter your username or email"
+               style="width:100%;padding:10px 14px;background:rgba(255,255,255,.06);
+                      border:1px solid rgba(255,255,255,.12);border-radius:8px;
+                      color:#f1f5f9;font-size:.9rem;outline:none;box-sizing:border-box"
+               onkeydown="if(event.key==='Enter')submitForgotRequest()"/>
+      </div>
+
+      <div style="margin-bottom:20px">
+        <label style="font-size:.75rem;font-weight:700;color:#94a3b8;
+               text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px">
+          Reason <span style="font-weight:400;text-transform:none">(optional)</span>
+        </label>
+        <textarea id="forgotReason" rows="2"
+                  placeholder="Why do you need a password reset?"
+                  style="width:100%;padding:10px 14px;background:rgba(255,255,255,.06);
+                         border:1px solid rgba(255,255,255,.12);border-radius:8px;
+                         color:#f1f5f9;font-size:.9rem;outline:none;
+                         resize:vertical;box-sizing:border-box"></textarea>
+      </div>
+
+      <button id="forgotSubmitBtn" onclick="submitForgotRequest()"
+              style="width:100%;padding:12px;border:none;border-radius:10px;
+                     background:linear-gradient(135deg,#3b82f6,#1d4ed8);
+                     color:#fff;font-size:.95rem;font-weight:600;cursor:pointer">
+        📨 Submit Reset Request
+      </button>
+
+      <p style="text-align:center;color:#64748b;font-size:.78rem;margin:14px 0 0">
+        An administrator will review your request and contact you.
+      </p>
+    </div>
+  </div>
+
+  <script>
+  function showForgotModal(e) {
+    if (e) e.preventDefault();
+    const m = document.getElementById("forgotModal");
+    m.style.display = "flex";
+    document.getElementById("forgotIdentifier").focus();
+    document.getElementById("forgotAlert").style.display = "none";
+    document.getElementById("forgotIdentifier").value = "";
+    document.getElementById("forgotReason").value = "";
+  }
+  function hideForgotModal() {
+    document.getElementById("forgotModal").style.display = "none";
+  }
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") hideForgotModal();
+  });
+  async function submitForgotRequest() {
+    const identifier = document.getElementById("forgotIdentifier").value.trim();
+    const reason     = document.getElementById("forgotReason").value.trim();
+    const alertEl    = document.getElementById("forgotAlert");
+    const btn        = document.getElementById("forgotSubmitBtn");
+
+    function showAlert(msg, ok) {
+      alertEl.textContent   = msg;
+      alertEl.style.display = "block";
+      alertEl.style.background = ok ? "rgba(34,197,94,.15)" : "rgba(239,68,68,.15)";
+      alertEl.style.color      = ok ? "#4ade80" : "#f87171";
+      alertEl.style.border     = ok ? "1px solid rgba(34,197,94,.3)" : "1px solid rgba(239,68,68,.3)";
+    }
+
+    if (!identifier) {
+      showAlert("⚠️ Please enter your username or email.", false);
+      return;
+    }
+
+    btn.disabled    = true;
+    btn.innerHTML   = "⏳ Submitting...";
+
+    // Direct fetch — api.js is not loaded on the login page
+    // API_BASE comes from auth.js which IS loaded
+    try {
+      const res = await fetch(`${API_BASE}/forgot-password`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ identifier, reason })
+      });
+
+      let data = {};
+      try { data = await res.json(); } catch {}
+
+      if (res.ok || res.status === 201) {
+        showAlert("✅ " + (data.message || "Reset request submitted! An admin will set your new password."), true);
+        btn.innerHTML = "✅ Submitted";
+        setTimeout(hideForgotModal, 3500);
+      } else {
+        showAlert("❌ " + (data.detail || "Something went wrong. Try again."), false);
+        btn.disabled  = false;
+        btn.innerHTML = "📨 Submit Reset Request";
+      }
+    } catch (err) {
+      showAlert("❌ Cannot reach server. Make sure the system is running.", false);
+      btn.disabled  = false;
+      btn.innerHTML = "📨 Submit Reset Request";
+    }
+  }
+  </script>
+
 </body>
 </html>

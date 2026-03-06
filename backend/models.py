@@ -1,7 +1,7 @@
 # backend/models.py
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey
 from sqlalchemy.sql import func
-from backend.database import Base   # ← only direction: models → database
+from backend.database import Base
 
 
 class User(Base):
@@ -25,7 +25,20 @@ class RoleRequest(Base):
     current_role   = Column(String, nullable=False)
     requested_role = Column(String, nullable=False)
     reason         = Column(Text,   nullable=True)
-    status         = Column(String, default="pending")   # pending | approved | rejected
+    status         = Column(String, default="pending")
     created_at     = Column(DateTime(timezone=True), server_default=func.now())
     reviewed_at    = Column(DateTime(timezone=True), nullable=True)
     reviewed_by    = Column(String, nullable=True)
+
+
+class PasswordResetRequest(Base):
+    __tablename__ = "password_reset_requests"
+    id          = Column(Integer, primary_key=True, index=True)
+    user_id     = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    username    = Column(String, nullable=False)
+    email       = Column(String, nullable=False)
+    reason      = Column(Text, nullable=True)
+    status      = Column(String, default="pending")   # pending | resolved | dismissed
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
+    resolved_by = Column(String, nullable=True)
