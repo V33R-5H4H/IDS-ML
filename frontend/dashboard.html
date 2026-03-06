@@ -16,14 +16,8 @@
       <i class="bi bi-shield-fill-check brand-icon-sm"></i>
       <span class="brand-text">IDS-ML <span class="brand-ver">v2.0</span></span>
     </div>
-
-    <!-- Role Banner -->
     <div class="role-banner" id="roleBanner"></div>
-
-    <nav class="sidebar-nav" id="sidebarNav">
-      <!-- Dynamically built per role -->
-    </nav>
-
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
     <div class="sidebar-user">
       <div class="user-avatar" id="userAvatar">?</div>
       <div class="user-info">
@@ -36,7 +30,7 @@
     </div>
   </aside>
 
-  <!-- ── MAIN CONTENT ── -->
+  <!-- ── MAIN ── -->
   <main class="main-content" id="mainContent">
 
     <!-- Topbar -->
@@ -59,9 +53,7 @@
       </div>
     </header>
 
-    <!-- ── ALL SECTIONS (visibility controlled by JS) ── -->
-
-    <!-- DASHBOARD (all roles) -->
+    <!-- DASHBOARD -->
     <section class="content-section active" id="section-dashboard">
       <div class="section-header">
         <h2 id="dashGreeting"></h2>
@@ -71,7 +63,7 @@
       <div class="row mt-4 g-3" id="dashCards"></div>
     </section>
 
-    <!-- PREDICTIONS (admin + analyst) -->
+    <!-- PREDICTIONS -->
     <section class="content-section" id="section-predictions">
       <div class="section-header">
         <h2><i class="bi bi-activity me-2"></i>Predictions</h2>
@@ -85,7 +77,7 @@
       </div>
     </section>
 
-    <!-- ALERTS (admin + analyst only) -->
+    <!-- ALERTS -->
     <section class="content-section" id="section-alerts">
       <div class="section-header">
         <h2><i class="bi bi-bell-fill me-2"></i>Alerts</h2>
@@ -99,7 +91,7 @@
       </div>
     </section>
 
-    <!-- PCAP ANALYSIS (admin + analyst) -->
+    <!-- PCAP -->
     <section class="content-section" id="section-pcap">
       <div class="section-header">
         <h2><i class="bi bi-file-earmark-binary-fill me-2"></i>PCAP Analysis</h2>
@@ -113,7 +105,7 @@
       </div>
     </section>
 
-    <!-- LIVE CAPTURE (admin + analyst) -->
+    <!-- LIVE -->
     <section class="content-section" id="section-live">
       <div class="section-header">
         <h2><i class="bi bi-broadcast me-2"></i>Live Capture</h2>
@@ -127,7 +119,7 @@
       </div>
     </section>
 
-    <!-- REPORTS (viewer only — read-only summary) -->
+    <!-- REPORTS (viewer) -->
     <section class="content-section" id="section-reports">
       <div class="section-header">
         <h2><i class="bi bi-bar-chart-fill me-2"></i>Reports</h2>
@@ -149,17 +141,30 @@
       </div>
       <div class="table-card">
         <div class="table-card-header">
-          <span><i class="bi bi-table me-2"></i>All Users</span>
-          <button class="btn-refresh" onclick="loadUsers()">
-            <i class="bi bi-arrow-clockwise me-1"></i>Refresh
-          </button>
+          <span>
+            <i class="bi bi-table me-2"></i>All Users
+            <span class="user-count-badge" id="userCountBadge">...</span>
+          </span>
+          <div style="display:flex;gap:8px">
+            <button class="btn-refresh" onclick="loadUsers()">
+              <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+            </button>
+            <button class="btn-add-user" onclick="openAddUserModal()">
+              <i class="bi bi-person-plus-fill"></i>Add User
+            </button>
+          </div>
         </div>
         <div class="table-responsive">
           <table class="ids-table">
             <thead>
               <tr>
-                <th>#</th><th>Username</th><th>Email</th>
-                <th>Role</th><th>Status</th><th>Last Login</th><th>Actions</th>
+                <th>ID</th>
+                <th>User</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Last Login</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody id="usersTableBody">
@@ -172,7 +177,7 @@
       </div>
     </section>
 
-    <!-- SYSTEM HEALTH (admin only) -->
+    <!-- HEALTH (admin only) -->
     <section class="content-section" id="section-health">
       <div class="section-header">
         <h2><i class="bi bi-heart-pulse-fill me-2"></i>System Health</h2>
@@ -186,6 +191,8 @@
             </div>
             <div class="info-card-body" id="fullHealthBody">
               <div class="skeleton-row"></div>
+              <div class="skeleton-row"></div>
+              <div class="skeleton-row"></div>
             </div>
           </div>
         </div>
@@ -195,35 +202,23 @@
               <i class="bi bi-gear-fill me-2 text-info"></i>Configuration
             </div>
             <div class="info-card-body">
-              <div class="info-row">
-                <span class="info-key">API Version</span>
-                <span class="info-val">2.0.0</span>
-              </div>
-              <div class="info-row">
-                <span class="info-key">Base URL</span>
-                <span class="info-val">http://localhost:8000</span>
-              </div>
+              <div class="info-row"><span class="info-key">API Version</span><span class="info-val">2.0.0</span></div>
+              <div class="info-row"><span class="info-key">Base URL</span><span class="info-val">http://localhost:8000</span></div>
               <div class="info-row">
                 <span class="info-key">Swagger Docs</span>
                 <a href="http://localhost:8000/docs" target="_blank" class="info-val link">
                   Open <i class="bi bi-box-arrow-up-right"></i>
                 </a>
               </div>
-              <div class="info-row">
-                <span class="info-key">Auth</span>
-                <span class="info-val text-success">JWT / bcrypt</span>
-              </div>
-              <div class="info-row">
-                <span class="info-key">Database</span>
-                <span class="info-val">SQLite → PostgreSQL</span>
-              </div>
+              <div class="info-row"><span class="info-key">Auth</span><span class="info-val text-success">JWT / bcrypt</span></div>
+              <div class="info-row"><span class="info-key">Database</span><span class="info-val">SQLite → PostgreSQL</span></div>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ACCESS DENIED (when lower role hits restricted page) -->
+    <!-- ACCESS DENIED -->
     <section class="content-section" id="section-denied">
       <div class="denied-card">
         <div class="denied-icon"><i class="bi bi-shield-fill-x"></i></div>

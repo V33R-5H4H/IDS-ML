@@ -512,3 +512,130 @@ body { font-family: "Inter", "Segoe UI", system-ui, sans-serif; }
   display: inline-block !important;
   vertical-align: middle; margin-bottom: 1px;
 }
+
+/* ═══════════════════════════════════════════════
+   REGISTER PAGE EXTRAS
+   ═══════════════════════════════════════════════ */
+.role-notice {
+  background: rgba(37,99,235,0.08);
+  border: 1px solid rgba(37,99,235,0.25);
+  border-radius: 8px; padding: 10px 14px;
+  display: flex; align-items: flex-start; gap: 8px;
+  font-size: 0.82rem; color: var(--text-muted);
+  margin-top: 6px;
+}
+.role-notice i { color: var(--primary); flex-shrink: 0; margin-top: 2px; }
+.role-notice strong { color: var(--text-main); }
+
+.pwd-strength-bar {
+  height: 4px; background: var(--bg-card2);
+  border-radius: 2px; overflow: hidden;
+}
+.pwd-strength-fill { height: 100%; width: 0%; transition: all 0.3s ease; }
+.pwd-strength-label { font-size: 0.72rem; font-weight: 600; margin-top: 3px; }
+
+/* ═══════════════════════════════════════════════
+   MODAL (shared: add user, change role, etc.)
+   ═══════════════════════════════════════════════ */
+.ids-modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.65);
+  display: flex; align-items: center; justify-content: center;
+  animation: fadeIn 0.15s ease;
+}
+.ids-modal {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 14px; width: 100%; max-width: 440px;
+  padding: 28px; box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+  animation: slideUp 0.2s ease;
+}
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.ids-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px; padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.ids-modal-header h5 { font-weight: 700; color: var(--text-main); margin: 0; font-size: 1rem; }
+.ids-modal-close {
+  background: none; border: none; color: var(--text-muted);
+  font-size: 1.2rem; cursor: pointer; padding: 2px;
+  border-radius: 6px; transition: all var(--transition);
+}
+.ids-modal-close:hover { color: var(--danger); background: rgba(239,68,68,0.1); }
+.ids-modal-footer {
+  display: flex; gap: 8px; justify-content: flex-end;
+  margin-top: 20px; padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.ids-select {
+  width: 100%; background: var(--bg-dark); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 14px; color: var(--text-main);
+  font-size: 0.9rem; outline: none; transition: border-color var(--transition);
+}
+.ids-select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
+.ids-select option { background: var(--bg-card2); }
+
+/* Modal buttons */
+.btn-modal-cancel {
+  padding: 9px 18px; border-radius: 8px; font-size: 0.88rem; font-weight: 600;
+  background: var(--bg-card2); border: 1px solid var(--border);
+  color: var(--text-muted); cursor: pointer; transition: all var(--transition);
+}
+.btn-modal-cancel:hover { border-color: var(--text-muted); color: var(--text-main); }
+.btn-modal-primary {
+  padding: 9px 18px; border-radius: 8px; font-size: 0.88rem; font-weight: 600;
+  background: linear-gradient(135deg, var(--primary), #1d4ed8);
+  border: none; color: #fff; cursor: pointer;
+  transition: opacity var(--transition);
+}
+.btn-modal-primary:hover { opacity: 0.88; }
+.btn-modal-danger {
+  padding: 9px 18px; border-radius: 8px; font-size: 0.88rem; font-weight: 600;
+  background: linear-gradient(135deg, var(--danger), #b91c1c);
+  border: none; color: #fff; cursor: pointer;
+  transition: opacity var(--transition);
+}
+.btn-modal-danger:hover { opacity: 0.88; }
+
+/* ═══════════════════════════════════════════════
+   ENHANCED USERS TABLE
+   ═══════════════════════════════════════════════ */
+.user-actions { display: flex; gap: 5px; flex-wrap: wrap; }
+
+.btn-sm-action {
+  padding: 4px 9px; border-radius: 6px; font-size: 0.75rem;
+  font-weight: 600; cursor: pointer; border: 1px solid;
+  display: inline-flex; align-items: center; gap: 4px;
+  transition: all var(--transition); white-space: nowrap;
+}
+.btn-sm-action.role   { background: rgba(37,99,235,0.1);  border-color: rgba(37,99,235,0.3);  color: #93c5fd; }
+.btn-sm-action.role:hover   { background: rgba(37,99,235,0.25); }
+.btn-sm-action.deact  { background: rgba(239,68,68,0.1);  border-color: rgba(239,68,68,0.3);  color: #fca5a5; }
+.btn-sm-action.deact:hover  { background: rgba(239,68,68,0.25); }
+.btn-sm-action.act    { background: rgba(34,197,94,0.1);  border-color: rgba(34,197,94,0.3);  color: #86efac; }
+.btn-sm-action.act:hover    { background: rgba(34,197,94,0.25); }
+.btn-sm-action.del    { background: rgba(239,68,68,0.07); border-color: rgba(239,68,68,0.2);  color: #fca5a5; }
+.btn-sm-action.del:hover    { background: rgba(239,68,68,0.2); }
+.btn-sm-action.pwd    { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.3); color: #fcd34d; }
+.btn-sm-action.pwd:hover    { background: rgba(245,158,11,0.25); }
+
+/* Add user header button */
+.btn-add-user {
+  background: linear-gradient(135deg, var(--primary), #1d4ed8);
+  border: none; color: #fff; padding: 7px 14px;
+  border-radius: 8px; font-size: 0.82rem; font-weight: 700;
+  cursor: pointer; display: flex; align-items: center; gap: 6px;
+  transition: opacity var(--transition);
+}
+.btn-add-user:hover { opacity: 0.88; }
+
+/* User count badge */
+.user-count-badge {
+  background: var(--bg-card2); border: 1px solid var(--border);
+  color: var(--text-muted); font-size: 0.75rem; font-weight: 700;
+  padding: 3px 10px; border-radius: 20px; margin-left: 8px;
+}
