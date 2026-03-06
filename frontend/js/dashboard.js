@@ -1,60 +1,65 @@
-// js/dashboard.js — Role-based dashboard (API_BASE from auth.js)
-
+// js/dashboard.js
 let currentUser = null;
 
-// ── Role Definitions ──────────────────────────────────────────────────────────
 const ROLES = {
   admin: {
-    banner:   { label:"Administrator", icon:"bi-shield-fill",        cls:"banner-admin"   },
+    banner:   {label:"Administrator", icon:"bi-shield-fill",        cls:"banner-admin"},
     greeting: "Admin Control Panel",
     subtitle: "Full system access — manage users, models and all detections",
     nav: [
-      { section:"dashboard",   icon:"bi-speedometer2",             label:"Dashboard"                          },
-      { section:"predictions", icon:"bi-activity",                 label:"Predictions",  badge:"predBadge"   },
-      { section:"alerts",      icon:"bi-bell-fill",                label:"Alerts",       badge:"alertBadge", badgeCls:"danger" },
-      { section:"pcap",        icon:"bi-file-earmark-binary-fill", label:"PCAP Analysis"                     },
-      { section:"live",        icon:"bi-broadcast",                label:"Live Capture"                      },
-      { separator:"ADMIN" },
-      { section:"users",       icon:"bi-people-fill",              label:"Users"                             },
-      { section:"health",      icon:"bi-heart-pulse-fill",         label:"System Health"                     },
+      {section:"dashboard",   icon:"bi-speedometer2",             label:"Dashboard"},
+      {section:"predictions", icon:"bi-activity",                 label:"Predictions",  badge:"predBadge"},
+      {section:"alerts",      icon:"bi-bell-fill",                label:"Alerts",       badge:"alertBadge", badgeCls:"danger"},
+      {section:"pcap",        icon:"bi-file-earmark-binary-fill", label:"PCAP Analysis"},
+      {section:"live",        icon:"bi-broadcast",                label:"Live Capture"},
+      {separator:"ADMIN"},
+      {section:"users",       icon:"bi-people-fill",              label:"Users"},
+      {section:"requests",    icon:"bi-person-up",                label:"Access Requests", badge:"reqBadge", badgeCls:"danger"},
+      {section:"health",      icon:"bi-heart-pulse-fill",         label:"System Health"},
+      {separator:"ACCOUNT"},
+      {section:"account",     icon:"bi-person-gear",              label:"My Account"},
     ],
     stats: ["total","attacks","normal","alerts","model","users"],
-    allowedSections: ["dashboard","predictions","alerts","pcap","live","users","health"]
+    allowedSections: ["dashboard","predictions","alerts","pcap","live","users","requests","health","account"]
   },
   analyst: {
-    banner:   { label:"Analyst",  icon:"bi-person-badge-fill", cls:"banner-analyst" },
+    banner:   {label:"Analyst", icon:"bi-person-badge-fill", cls:"banner-analyst"},
     greeting: "Analyst Workstation",
     subtitle: "Detection analysis, PCAP uploads and alert management",
     nav: [
-      { section:"dashboard",   icon:"bi-speedometer2",             label:"Dashboard"                         },
-      { section:"predictions", icon:"bi-activity",                 label:"Predictions", badge:"predBadge"   },
-      { section:"alerts",      icon:"bi-bell-fill",                label:"Alerts",      badge:"alertBadge", badgeCls:"danger" },
-      { section:"pcap",        icon:"bi-file-earmark-binary-fill", label:"PCAP Analysis"                    },
-      { section:"live",        icon:"bi-broadcast",                label:"Live Capture"                     },
+      {section:"dashboard",   icon:"bi-speedometer2",             label:"Dashboard"},
+      {section:"predictions", icon:"bi-activity",                 label:"Predictions", badge:"predBadge"},
+      {section:"alerts",      icon:"bi-bell-fill",                label:"Alerts",      badge:"alertBadge", badgeCls:"danger"},
+      {section:"pcap",        icon:"bi-file-earmark-binary-fill", label:"PCAP Analysis"},
+      {section:"live",        icon:"bi-broadcast",                label:"Live Capture"},
+      {separator:"ACCOUNT"},
+      {section:"account",     icon:"bi-person-gear",              label:"My Account"},
     ],
     stats: ["total","attacks","normal","alerts","model"],
-    allowedSections: ["dashboard","predictions","alerts","pcap","live"]
+    allowedSections: ["dashboard","predictions","alerts","pcap","live","account"]
   },
   viewer: {
-    banner:   { label:"Viewer",   icon:"bi-eye-fill",          cls:"banner-viewer"  },
+    banner:   {label:"Viewer", icon:"bi-eye-fill", cls:"banner-viewer"},
     greeting: "Security Overview",
     subtitle: "Read-only access — view detections and summary reports",
     nav: [
-      { section:"dashboard", icon:"bi-speedometer2",   label:"Dashboard" },
-      { section:"reports",   icon:"bi-bar-chart-fill", label:"Reports"   },
+      {section:"dashboard", icon:"bi-speedometer2",   label:"Dashboard"},
+      {section:"reports",   icon:"bi-bar-chart-fill", label:"Reports"},
+      {separator:"ACCOUNT"},
+      {section:"account",   icon:"bi-person-gear",    label:"My Account"},
     ],
     stats: ["total","attacks","normal"],
-    allowedSections: ["dashboard","reports"]
+    allowedSections: ["dashboard","reports","account"]
   }
 };
 
 const STAT_DEFS = {
-  total:   { id:"statTotal",   icon:"bi-activity",           label:"Total Predictions", cls:"blue",   trend:"Live",      trendCls:"up"    },
-  attacks: { id:"statAttacks", icon:"bi-shield-exclamation", label:"Attacks Detected",  cls:"red",    trend:"Active",    trendCls:"up"    },
-  normal:  { id:"statNormal",  icon:"bi-check-circle-fill",  label:"Normal Traffic",    cls:"green",  trend:"Stable",    trendCls:""      },
-  alerts:  { id:"statAlerts",  icon:"bi-bell-fill",          label:"Active Alerts",     cls:"yellow", trend:"Review",    trendCls:"danger"},
-  model:   { id:"statModel",   icon:"bi-cpu-fill",           label:"Active Model",      cls:"purple", trend:"85.9% Acc", trendCls:""      },
-  users:   { id:"statUsers",   icon:"bi-people-fill",        label:"Total Users",       cls:"teal",   trend:"Active",    trendCls:""      },
+  total:   {id:"statTotal",   icon:"bi-activity",           label:"Total Predictions", cls:"blue",   trend:"Live",      trendCls:"up"},
+  attacks: {id:"statAttacks", icon:"bi-shield-exclamation", label:"Attacks Detected",  cls:"red",    trend:"Active",    trendCls:"up"},
+  normal:  {id:"statNormal",  icon:"bi-check-circle-fill",  label:"Normal Traffic",    cls:"green",  trend:"Stable",    trendCls:""},
+  alerts:  {id:"statAlerts",  icon:"bi-bell-fill",          label:"Active Alerts",     cls:"yellow", trend:"Review",    trendCls:"danger"},
+  model:   {id:"statModel",   icon:"bi-cpu-fill",           label:"Active Model",      cls:"purple", trend:"85.9% Acc", trendCls:""},
+  users:   {id:"statUsers",   icon:"bi-people-fill",        label:"Total Users",       cls:"teal",   trend:"Active",    trendCls:""},
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -74,14 +79,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   renderTopbarUser(currentUser);
   setupNavigation(cfg);
 
-  // Cards HTML first, then fill data
   await loadDashboardCards(cfg, role);
   renderProfileCard(currentUser);
   await checkAPIHealth();
+
+  // Admin: load pending request count for badge
+  if (role === "admin") loadPendingReqBadge();
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// BUILD FUNCTIONS
+// BUILDER FUNCTIONS
 // ══════════════════════════════════════════════════════════════════════════════
 function buildRoleBanner(cfg) {
   const b = cfg.banner;
@@ -118,19 +125,19 @@ function buildStatCards(cfg) {
 }
 
 function renderTopbarUser(user) {
-  document.getElementById("sidebarUsername").textContent = user.username;
+  document.getElementById("sidebarUsername").textContent = user.display_name || user.username;
   document.getElementById("sidebarRole").textContent     = user.role;
-  document.getElementById("userAvatar").textContent      = user.username[0].toUpperCase();
-  document.getElementById("topbarUsername").textContent  = user.username;
+  document.getElementById("userAvatar").textContent      = (user.display_name||user.username)[0].toUpperCase();
+  document.getElementById("topbarUsername").textContent  = user.display_name || user.username;
   const rb = document.getElementById("topbarRole");
   rb.textContent = user.role; rb.className = `role-badge ${user.role}`;
 }
 
 function renderProfileCard(user) {
-  const el = document.getElementById("profileBody");
-  if (!el) return;
+  const el = document.getElementById("profileBody"); if (!el) return;
+  const name = user.display_name ? `${user.display_name} <span style="color:var(--text-muted);font-size:0.8rem">(${user.username})</span>` : user.username;
   el.innerHTML = `
-    <div class="info-row"><span class="info-key">Username</span><span class="info-val">${user.username}</span></div>
+    <div class="info-row"><span class="info-key">Name</span><span class="info-val">${name}</span></div>
     <div class="info-row"><span class="info-key">Email</span><span class="info-val">${user.email}</span></div>
     <div class="info-row"><span class="info-key">Role</span>
       <span class="info-val"><span class="role-pill ${user.role}">${user.role}</span></span></div>
@@ -145,36 +152,34 @@ function renderProfileCard(user) {
 // ══════════════════════════════════════════════════════════════════════════════
 async function checkAPIHealth() {
   const data = await API.health();
-  const dot  = document.getElementById("apiStatus");
   const ok   = data && data.status === "ok";
+  const dot  = document.getElementById("apiStatus");
   if (dot) dot.innerHTML = ok
     ? `<span class="status-dot green"></span> Online`
     : `<span class="status-dot"></span> Offline`;
-
   const html = ok ? `
     <div class="info-row"><span class="info-key"><span class="status-dot green d-inline-block me-2"></span>API Server</span><span class="info-val text-success">Online</span></div>
     <div class="info-row"><span class="info-key"><span class="status-dot green d-inline-block me-2"></span>Database</span><span class="info-val text-success">Connected</span></div>
     <div class="info-row"><span class="info-key"><span class="status-dot green d-inline-block me-2"></span>Auth Service</span><span class="info-val text-success">Running</span></div>
     <div class="info-row"><span class="info-key">Version</span><span class="info-val">${data.version}</span></div>`
     : `<div class="info-row"><span class="info-key" style="color:var(--danger)">❌ API Unreachable</span></div>`;
-
   ["healthBody","fullHealthBody"].forEach(id => {
     const el = document.getElementById(id); if (el) el.innerHTML = html;
   });
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// DASHBOARD CARDS (role-specific)
+// DASHBOARD CARDS
 // ══════════════════════════════════════════════════════════════════════════════
+const skeletons = `<div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div>`;
+
 async function loadDashboardCards(cfg, role) {
   document.getElementById("dashGreeting").innerHTML   = `<i class="bi bi-speedometer2 me-2"></i>${cfg.greeting}`;
   document.getElementById("dashSubtitle").textContent = cfg.subtitle;
-
   ["statTotal","statAttacks","statNormal","statAlerts"].forEach(id => {
     const el = document.getElementById(id); if (el) el.textContent = "0";
   });
   const sm = document.getElementById("statModel"); if (sm) sm.textContent = "RF v1.0";
-
   if (role === "admin") {
     const users = await API.users();
     const su = document.getElementById("statUsers"); if (su) su.textContent = users.length || "3";
@@ -186,9 +191,6 @@ async function loadDashboardCards(cfg, role) {
   }
 }
 
-// ── Card HTML templates ───────────────────────────────────────────────────────
-const skeletons = `<div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div>`;
-
 function adminCards() { return `
   <div class="col-lg-4"><div class="info-card h-100">
     <div class="info-card-header"><i class="bi bi-heart-pulse-fill me-2 text-success"></i>System Health
@@ -197,7 +199,9 @@ function adminCards() { return `
     <div class="info-card-body" id="healthBody">${skeletons}</div>
   </div></div>
   <div class="col-lg-4"><div class="info-card h-100">
-    <div class="info-card-header"><i class="bi bi-person-fill me-2 text-primary"></i>My Profile</div>
+    <div class="info-card-header"><i class="bi bi-person-fill me-2 text-primary"></i>My Profile
+      <a href="#" class="card-link ms-auto" onclick="navigateTo('account');return false;">Edit <i class="bi bi-pencil"></i></a>
+    </div>
     <div class="info-card-body" id="profileBody">${skeletons}</div>
   </div></div>
   <div class="col-lg-4"><div class="info-card h-100">
@@ -205,18 +209,18 @@ function adminCards() { return `
     <div class="info-card-body">
       <button class="quick-action-btn" onclick="navigateTo('users')">
         <i class="bi bi-people-fill text-danger"></i>
-        <div><strong>Manage Users</strong><small>Add, roles, deactivate, delete</small></div>
+        <div><strong>Manage Users</strong><small>Roles, deactivate, delete</small></div>
         <i class="bi bi-chevron-right ms-auto"></i>
       </button>
-      <button class="quick-action-btn" onclick="navigateTo('health')">
-        <i class="bi bi-heart-pulse-fill text-success"></i>
-        <div><strong>System Health</strong><small>Full diagnostics</small></div>
+      <button class="quick-action-btn" onclick="navigateTo('requests')">
+        <i class="bi bi-person-up text-warning"></i>
+        <div><strong>Access Requests</strong><small>Review pending role upgrades</small></div>
         <i class="bi bi-chevron-right ms-auto"></i>
       </button>
-      <button class="quick-action-btn" onclick="window.open('http://localhost:8000/docs','_blank')">
-        <i class="bi bi-code-slash text-info"></i>
-        <div><strong>API Docs</strong><small>Swagger UI</small></div>
-        <i class="bi bi-box-arrow-up-right ms-auto"></i>
+      <button class="quick-action-btn" onclick="navigateTo('account')">
+        <i class="bi bi-person-gear text-info"></i>
+        <div><strong>My Account</strong><small>Edit profile & password</small></div>
+        <i class="bi bi-chevron-right ms-auto"></i>
       </button>
     </div>
   </div></div>
@@ -231,31 +235,13 @@ function analystCards() { return `
     <div class="info-card-body" id="healthBody">${skeletons}</div>
   </div></div>
   <div class="col-lg-6"><div class="info-card h-100">
-    <div class="info-card-header"><i class="bi bi-person-badge-fill me-2" style="color:var(--primary)"></i>My Profile</div>
+    <div class="info-card-header"><i class="bi bi-person-badge-fill me-2" style="color:var(--primary)"></i>My Profile
+      <a href="#" class="card-link ms-auto" onclick="navigateTo('account');return false;">Edit <i class="bi bi-pencil"></i></a>
+    </div>
     <div class="info-card-body" id="profileBody">${skeletons}</div>
   </div></div>
-  <div class="col-lg-6"><div class="info-card">
-    <div class="info-card-header"><i class="bi bi-lightning-fill me-2 text-warning"></i>Quick Actions</div>
-    <div class="info-card-body">
-      <button class="quick-action-btn" onclick="navigateTo('pcap')">
-        <i class="bi bi-file-earmark-binary-fill text-primary"></i>
-        <div><strong>Upload PCAP</strong><small>Analyse packet capture</small></div>
-        <i class="bi bi-chevron-right ms-auto"></i>
-      </button>
-      <button class="quick-action-btn" onclick="navigateTo('live')">
-        <i class="bi bi-broadcast text-success"></i>
-        <div><strong>Live Capture</strong><small>Real-time monitoring</small></div>
-        <i class="bi bi-chevron-right ms-auto"></i>
-      </button>
-      <button class="quick-action-btn" onclick="navigateTo('alerts')">
-        <i class="bi bi-bell-fill text-warning"></i>
-        <div><strong>View Alerts</strong><small>Review security alerts</small></div>
-        <i class="bi bi-chevron-right ms-auto"></i>
-      </button>
-    </div>
-  </div></div>
-  <div class="col-lg-6"><div class="info-card">
-    <div class="info-card-header"><i class="bi bi-key-fill me-2" style="color:var(--primary)"></i>Your Permissions — Analyst</div>
+  <div class="col-12"><div class="info-card">
+    <div class="info-card-header"><i class="bi bi-key-fill me-2 text-primary"></i>Your Permissions — Analyst</div>
     <div class="info-card-body"><div class="permissions-grid">${analystPerms()}</div></div>
   </div></div>`; }
 
@@ -265,23 +251,21 @@ function viewerCards() { return `
     <div class="info-card-body" id="healthBody">${skeletons}</div>
   </div></div>
   <div class="col-lg-6"><div class="info-card h-100">
-    <div class="info-card-header"><i class="bi bi-eye-fill me-2 text-success"></i>My Profile</div>
+    <div class="info-card-header"><i class="bi bi-eye-fill me-2 text-success"></i>My Profile
+      <a href="#" class="card-link ms-auto" onclick="navigateTo('account');return false;">Edit <i class="bi bi-pencil"></i></a>
+    </div>
     <div class="info-card-body" id="profileBody">${skeletons}</div>
   </div></div>
   <div class="col-12">
     <div class="viewer-notice">
       <i class="bi bi-eye-fill"></i>
       <div><strong>Read-Only Access</strong>
-        <p>You have view-only access. Contact your administrator to request elevated permissions.</p>
+        <p>You have view-only access. Use <strong>My Account → Request Access</strong> to request elevated permissions.</p>
       </div>
     </div>
-  </div>
-  <div class="col-12"><div class="info-card">
-    <div class="info-card-header"><i class="bi bi-key-fill me-2 text-success"></i>Your Permissions — Viewer</div>
-    <div class="info-card-body"><div class="permissions-grid">${viewerPerms()}</div></div>
-  </div></div>`; }
+  </div>`; }
 
-// ── Permission pills ──────────────────────────────────────────────────────────
+// ── Permissions ───────────────────────────────────────────────────────────────
 function perm(icon, label, allowed) {
   return `<div class="perm-item ${allowed?'allowed':'denied'}">
     <i class="bi ${allowed?'bi-check-circle-fill':'bi-x-circle-fill'}"></i>
@@ -292,19 +276,19 @@ function adminPerms()  { return [
   perm("bi-people-fill","Manage Users",true), perm("bi-cpu-fill","Switch ML Model",true),
   perm("bi-file-earmark-binary-fill","Upload PCAP",true), perm("bi-broadcast","Live Capture",true),
   perm("bi-bell-fill","Manage Alerts",true), perm("bi-activity","View Predictions",true),
-  perm("bi-heart-pulse-fill","System Health",true), perm("bi-gear-fill","System Settings",true),
+  perm("bi-person-up","Role Requests",true), perm("bi-gear-fill","System Settings",true),
 ].join(""); }
 function analystPerms(){ return [
   perm("bi-people-fill","Manage Users",false), perm("bi-cpu-fill","Switch ML Model",true),
   perm("bi-file-earmark-binary-fill","Upload PCAP",true), perm("bi-broadcast","Live Capture",true),
   perm("bi-bell-fill","Acknowledge Alerts",true), perm("bi-activity","View Predictions",true),
-  perm("bi-heart-pulse-fill","System Health",false), perm("bi-gear-fill","System Settings",false),
+  perm("bi-person-up","Role Requests",false), perm("bi-gear-fill","System Settings",false),
 ].join(""); }
 function viewerPerms() { return [
   perm("bi-people-fill","Manage Users",false), perm("bi-cpu-fill","Switch ML Model",false),
   perm("bi-file-earmark-binary-fill","Upload PCAP",false), perm("bi-broadcast","Live Capture",false),
-  perm("bi-bell-fill","Acknowledge Alerts",false), perm("bi-activity","View Predictions",true),
-  perm("bi-heart-pulse-fill","System Health",false), perm("bi-bar-chart-fill","View Reports",true),
+  perm("bi-bell-fill","Manage Alerts",false), perm("bi-activity","View Predictions",true),
+  perm("bi-person-up","Request Access",true), perm("bi-bar-chart-fill","View Reports",true),
 ].join(""); }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -312,7 +296,9 @@ function viewerPerms() { return [
 // ══════════════════════════════════════════════════════════════════════════════
 function setupNavigation(cfg) {
   document.querySelectorAll(".nav-item[data-section]").forEach(item => {
-    item.addEventListener("click", e => { e.preventDefault(); navigateTo(item.dataset.section, cfg); });
+    item.addEventListener("click", e => {
+      e.preventDefault(); navigateTo(item.dataset.section, cfg);
+    });
   });
 }
 
@@ -332,33 +318,34 @@ function navigateTo(section, cfg) {
   if (an) an.classList.add("active");
   document.querySelectorAll(".content-section").forEach(s => s.classList.remove("active"));
   const t = document.getElementById(`section-${section}`); if (t) t.classList.add("active");
-  const titles = {dashboard:"Dashboard",predictions:"Predictions",alerts:"Alerts",
-    pcap:"PCAP Analysis",live:"Live Capture",reports:"Reports",
-    users:"User Management",health:"System Health"};
+  const titles = {
+    dashboard:"Dashboard", predictions:"Predictions", alerts:"Alerts",
+    pcap:"PCAP Analysis", live:"Live Capture", reports:"Reports",
+    users:"User Management", requests:"Access Requests",
+    health:"System Health", account:"My Account"
+  };
   document.getElementById("pageTitle").textContent = titles[section] || section;
-  if (section === "users")  loadUsers();
-  if (section === "health") checkAPIHealth();
+  if (section === "users")    loadUsers();
+  if (section === "requests") loadRoleRequests("pending");
+  if (section === "health")   checkAPIHealth();
+  if (section === "account")  initAccountSection(currentUser);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// USERS TABLE (full admin management)
+// USERS TABLE
 // ══════════════════════════════════════════════════════════════════════════════
 async function loadUsers() {
-  const tbody = document.getElementById("usersTableBody");
-  if (!tbody) return;
+  const tbody = document.getElementById("usersTableBody"); if (!tbody) return;
   tbody.innerHTML = `<tr><td colspan="7" class="text-center p-4">
     <div class="spinner-border text-primary spinner-border-sm"></div> Loading users...
   </td></tr>`;
-
   const users = await API.users();
   const badge = document.getElementById("userCountBadge");
   if (badge) badge.textContent = `${users.length} users`;
-
   if (!users.length) {
     tbody.innerHTML = `<tr><td colspan="7" class="text-center p-4 text-muted">No users found</td></tr>`;
     return;
   }
-
   tbody.innerHTML = users.map(u => {
     const isMe = u.username === currentUser?.username;
     return `<tr id="user-row-${u.id}">
@@ -366,22 +353,18 @@ async function loadUsers() {
       <td>
         <div style="display:flex;align-items:center;gap:9px">
           <div class="user-avatar" style="width:32px;height:32px;font-size:0.8rem;border-radius:8px;flex-shrink:0">
-            ${u.username[0].toUpperCase()}
+            ${(u.display_name||u.username)[0].toUpperCase()}
           </div>
           <div>
-            <div style="font-weight:700;color:var(--text-main)">${u.username}
+            <div style="font-weight:700;color:var(--text-main)">${u.display_name||u.username}
               ${isMe ? '<span class="coming-badge" style="font-size:0.62rem;padding:1px 6px;margin-left:4px">You</span>' : ""}
             </div>
-            <div style="font-size:0.72rem;color:var(--text-muted)">${u.email || "—"}</div>
+            <div style="font-size:0.72rem;color:var(--text-muted)">${u.email||"—"}</div>
           </div>
         </div>
       </td>
       <td><span class="role-pill ${u.role}">${u.role}</span></td>
-      <td>
-        <span class="status-pill ${u.is_active ? "active":"inactive"}">
-          ${u.is_active ? "Active" : "Inactive"}
-        </span>
-      </td>
+      <td><span class="status-pill ${u.is_active?"active":"inactive"}">${u.is_active?"Active":"Inactive"}</span></td>
       <td style="color:var(--text-muted);font-size:0.78rem">
         ${u.created_at ? new Date(u.created_at).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}) : "—"}
       </td>
@@ -396,12 +379,8 @@ async function loadUsers() {
                 <i class="bi bi-arrow-repeat"></i>Role
               </button>
               ${u.is_active
-                ? `<button class="btn-sm-action deact" onclick="toggleActive(${u.id},'${u.username}',false)">
-                     <i class="bi bi-pause-circle"></i>Deactivate
-                   </button>`
-                : `<button class="btn-sm-action act" onclick="toggleActive(${u.id},'${u.username}',true)">
-                     <i class="bi bi-play-circle"></i>Activate
-                   </button>`}
+                ? `<button class="btn-sm-action deact" onclick="toggleActive(${u.id},'${u.username}',false)"><i class="bi bi-pause-circle"></i>Deactivate</button>`
+                : `<button class="btn-sm-action act"  onclick="toggleActive(${u.id},'${u.username}',true)"><i class="bi bi-play-circle"></i>Activate</button>`}
               <button class="btn-sm-action pwd" onclick="openPwdModal(${u.id},'${u.username}')">
                 <i class="bi bi-key"></i>Password
               </button>
@@ -415,23 +394,125 @@ async function loadUsers() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// MODALS
+// ROLE REQUESTS (admin)
+// ══════════════════════════════════════════════════════════════════════════════
+let reqFilter = "pending";
+
+async function loadPendingReqBadge() {
+  const reqs  = await API.getRoleRequests("pending");
+  const badge = document.getElementById("reqBadge");
+  if (!badge) return;
+  badge.textContent = reqs.length;
+  badge.style.display = reqs.length > 0 ? "" : "none";
+}
+
+async function loadRoleRequests(status = "pending") {
+  reqFilter = status;
+  // Update filter buttons
+  document.querySelectorAll(".req-filter-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.status === status);
+  });
+
+  const list = document.getElementById("reqList"); if (!list) return;
+  list.innerHTML = `<div style="text-align:center;padding:24px">
+    <div class="spinner-border text-primary spinner-border-sm"></div> Loading...
+  </div>`;
+
+  const reqs = await API.getRoleRequests(status);
+  if (!reqs.length) {
+    list.innerHTML = `<div id="reqListEmpty">
+      <i class="bi bi-inbox" style="font-size:2rem;display:block;margin-bottom:8px;opacity:.4"></i>
+      No ${status} access requests
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = reqs.map(r => {
+    const isPending  = r.status === "pending";
+    const timeAgo    = timeSince(r.created_at);
+    return `<div class="req-card ${r.status}" id="req-card-${r.id}">
+      <div class="req-card-top">
+        <div class="req-card-user">
+          <div class="req-avatar">${r.username[0].toUpperCase()}</div>
+          <div>
+            <div class="req-card-uname">${r.username}</div>
+            <div class="req-card-meta">${timeAgo} ago · Request #${r.id}</div>
+          </div>
+        </div>
+        <span class="req-badge ${r.status}">
+          <i class="bi ${r.status==="pending"?"bi-hourglass-split":r.status==="approved"?"bi-check-circle-fill":"bi-x-circle-fill"}"></i>
+          ${r.status.charAt(0).toUpperCase()+r.status.slice(1)}
+        </span>
+      </div>
+      <div class="req-card-body">
+        <div class="req-role-arrow">
+          <span class="from"><span class="role-pill ${r.current_role}" style="font-size:0.72rem">${r.current_role}</span></span>
+          <span class="arr"><i class="bi bi-arrow-right"></i></span>
+          <span class="to"><span class="role-pill ${r.requested_role}" style="font-size:0.72rem">${r.requested_role}</span></span>
+        </div>
+      </div>
+      ${r.reason ? `<div class="req-reason-box">${r.reason}</div>` : ""}
+      <div class="req-card-actions">
+        ${isPending ? `
+          <button class="btn-approve" onclick="reviewRequest(${r.id},'approve')">
+            <i class="bi bi-check-lg"></i>Approve
+          </button>
+          <button class="btn-reject" onclick="reviewRequest(${r.id},'reject')">
+            <i class="bi bi-x-lg"></i>Reject
+          </button>` : `
+          <span class="req-reviewed-by">
+            <i class="bi bi-person-check me-1"></i>Reviewed by ${r.reviewed_by}
+          </span>`}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+async function reviewRequest(reqId, action) {
+  const card = document.getElementById(`req-card-${reqId}`);
+  const btns = card?.querySelectorAll("button");
+  if (btns) btns.forEach(b => b.disabled = true);
+
+  const result = action === "approve"
+    ? await API.approveRoleRequest(reqId)
+    : await API.rejectRoleRequest(reqId);
+
+  if (result.ok) {
+    showToast(result.data.message, "success");
+    loadRoleRequests(reqFilter);
+    loadPendingReqBadge();
+    // If approved, refresh currentUser in case it's the logged-in user
+    const me = await API.me();
+    if (me) { currentUser = me; renderTopbarUser(currentUser); }
+  } else {
+    showToast(result.data?.detail || "Action failed", "error");
+    if (btns) btns.forEach(b => b.disabled = false);
+  }
+}
+
+function timeSince(dateStr) {
+  const s = Math.floor((Date.now() - new Date(dateStr)) / 1000);
+  if (s < 60)   return `${s}s`;
+  if (s < 3600) return `${Math.floor(s/60)}m`;
+  if (s < 86400)return `${Math.floor(s/3600)}h`;
+  return `${Math.floor(s/86400)}d`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SHARED MODALS (admin user management)
 // ══════════════════════════════════════════════════════════════════════════════
 function closeModal() {
   const m = document.getElementById("idsModal"); if (m) m.remove();
 }
-
 function openModal(html) {
   closeModal();
   const overlay = document.createElement("div");
-  overlay.id        = "idsModal";
-  overlay.className = "ids-modal-overlay";
+  overlay.id = "idsModal"; overlay.className = "ids-modal-overlay";
   overlay.innerHTML = `<div class="ids-modal">${html}</div>`;
   overlay.addEventListener("click", e => { if (e.target === overlay) closeModal(); });
   document.body.appendChild(overlay);
 }
 
-// ── Add User Modal ────────────────────────────────────────────────────────────
 function openAddUserModal() {
   openModal(`
     <div class="ids-modal-header">
@@ -439,31 +520,21 @@ function openAddUserModal() {
       <button class="ids-modal-close" onclick="closeModal()"><i class="bi bi-x-lg"></i></button>
     </div>
     <div id="modalAlert" class="alert-area d-none mb-3"></div>
-    <div class="input-group-custom">
-      <label class="form-label-custom">Username</label>
-      <input id="m_username" class="form-input-custom" placeholder="Enter username"/>
-    </div>
-    <div class="input-group-custom">
-      <label class="form-label-custom">Email</label>
-      <input id="m_email" type="email" class="form-input-custom" placeholder="user@example.com"/>
-    </div>
-    <div class="input-group-custom">
-      <label class="form-label-custom">Password</label>
-      <input id="m_password" type="password" class="form-input-custom" placeholder="Min. 6 characters"/>
-    </div>
-    <div class="input-group-custom">
-      <label class="form-label-custom">Role</label>
+    <div class="input-group-custom"><label class="form-label-custom">Username</label>
+      <input id="m_username" class="form-input-custom" placeholder="Enter username"/></div>
+    <div class="input-group-custom"><label class="form-label-custom">Email</label>
+      <input id="m_email" type="email" class="form-input-custom" placeholder="user@example.com"/></div>
+    <div class="input-group-custom"><label class="form-label-custom">Password</label>
+      <input id="m_password" type="password" class="form-input-custom" placeholder="Min. 6 characters"/></div>
+    <div class="input-group-custom"><label class="form-label-custom">Role</label>
       <select id="m_role" class="ids-select">
-        <option value="viewer">Viewer — Read-only access</option>
+        <option value="viewer">Viewer — Read-only</option>
         <option value="analyst">Analyst — Detection + PCAP</option>
         <option value="admin">Admin — Full access</option>
-      </select>
-    </div>
+      </select></div>
     <div class="ids-modal-footer">
       <button class="btn-modal-cancel" onclick="closeModal()">Cancel</button>
-      <button class="btn-modal-primary" onclick="submitAddUser()">
-        <i class="bi bi-person-check me-1"></i>Create User
-      </button>
+      <button class="btn-modal-primary" onclick="submitAddUser()"><i class="bi bi-person-check me-1"></i>Create User</button>
     </div>`);
 }
 
@@ -472,20 +543,12 @@ async function submitAddUser() {
   const email    = document.getElementById("m_email").value.trim();
   const password = document.getElementById("m_password").value;
   const role     = document.getElementById("m_role").value;
-  if (!username || !email || !password) {
-    return modalAlert("All fields are required.", "error");
-  }
+  if (!username || !email || !password) return modalAlert("All fields are required.", "error");
   const result = await API.createUser(username, email, password, role);
-  if (result.ok) {
-    closeModal();
-    showToast(`User "${username}" created as ${role}!`, "success");
-    loadUsers();
-  } else {
-    modalAlert(result.data?.detail || "Failed to create user.", "error");
-  }
+  if (result.ok) { closeModal(); showToast(`User "${username}" created as ${role}!`, "success"); loadUsers(); }
+  else modalAlert(result.data?.detail || "Failed to create user.", "error");
 }
 
-// ── Change Role Modal ─────────────────────────────────────────────────────────
 function openRoleModal(userId, username, currentRole) {
   openModal(`
     <div class="ids-modal-header">
@@ -496,35 +559,25 @@ function openRoleModal(userId, username, currentRole) {
     <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:14px">
       Update role for <strong style="color:var(--text-main)">${username}</strong>
     </p>
-    <div class="input-group-custom">
-      <label class="form-label-custom">New Role</label>
+    <div class="input-group-custom"><label class="form-label-custom">New Role</label>
       <select id="m_newRole" class="ids-select">
-        <option value="viewer"  ${currentRole==="viewer"  ?"selected":""}>Viewer — Read-only access</option>
-        <option value="analyst" ${currentRole==="analyst" ?"selected":""}>Analyst — Detection + PCAP</option>
-        <option value="admin"   ${currentRole==="admin"   ?"selected":""}>Admin — Full access</option>
-      </select>
-    </div>
+        <option value="viewer"  ${currentRole==="viewer"  ?"selected":""}>Viewer</option>
+        <option value="analyst" ${currentRole==="analyst" ?"selected":""}>Analyst</option>
+        <option value="admin"   ${currentRole==="admin"   ?"selected":""}>Admin</option>
+      </select></div>
     <div class="ids-modal-footer">
       <button class="btn-modal-cancel" onclick="closeModal()">Cancel</button>
-      <button class="btn-modal-primary" onclick="submitRoleChange(${userId},'${username}')">
-        <i class="bi bi-check2 me-1"></i>Update Role
-      </button>
+      <button class="btn-modal-primary" onclick="submitRoleChange(${userId},'${username}')"><i class="bi bi-check2 me-1"></i>Update Role</button>
     </div>`);
 }
 
 async function submitRoleChange(userId, username) {
-  const role   = document.getElementById("m_newRole").value;
+  const role = document.getElementById("m_newRole").value;
   const result = await API.changeRole(userId, role);
-  if (result.ok) {
-    closeModal();
-    showToast(`"${username}" is now ${role}`, "success");
-    loadUsers();
-  } else {
-    modalAlert(result.data?.detail || "Failed to change role.", "error");
-  }
+  if (result.ok) { closeModal(); showToast(`"${username}" is now ${role}`, "success"); loadUsers(); }
+  else modalAlert(result.data?.detail || "Failed.", "error");
 }
 
-// ── Reset Password Modal ──────────────────────────────────────────────────────
 function openPwdModal(userId, username) {
   openModal(`
     <div class="ids-modal-header">
@@ -535,19 +588,13 @@ function openPwdModal(userId, username) {
     <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:14px">
       Set a new password for <strong style="color:var(--text-main)">${username}</strong>
     </p>
-    <div class="input-group-custom">
-      <label class="form-label-custom">New Password</label>
-      <input id="m_newPwd" type="password" class="form-input-custom" placeholder="Min. 6 characters"/>
-    </div>
-    <div class="input-group-custom">
-      <label class="form-label-custom">Confirm Password</label>
-      <input id="m_confirmPwd" type="password" class="form-input-custom" placeholder="Repeat password"/>
-    </div>
+    <div class="input-group-custom"><label class="form-label-custom">New Password</label>
+      <input id="m_newPwd" type="password" class="form-input-custom" placeholder="Min. 6 characters"/></div>
+    <div class="input-group-custom"><label class="form-label-custom">Confirm Password</label>
+      <input id="m_confirmPwd" type="password" class="form-input-custom" placeholder="Repeat password"/></div>
     <div class="ids-modal-footer">
       <button class="btn-modal-cancel" onclick="closeModal()">Cancel</button>
-      <button class="btn-modal-primary" onclick="submitResetPwd(${userId},'${username}')">
-        <i class="bi bi-check2 me-1"></i>Reset Password
-      </button>
+      <button class="btn-modal-primary" onclick="submitResetPwd(${userId},'${username}')"><i class="bi bi-check2 me-1"></i>Reset</button>
     </div>`);
 }
 
@@ -557,15 +604,10 @@ async function submitResetPwd(userId, username) {
   if (pwd1.length < 6) return modalAlert("Password must be at least 6 characters.", "error");
   if (pwd1 !== pwd2)   return modalAlert("Passwords do not match.", "error");
   const result = await API.resetPassword(userId, pwd1);
-  if (result.ok) {
-    closeModal();
-    showToast(`Password reset for "${username}"`, "success");
-  } else {
-    modalAlert(result.data?.detail || "Failed to reset password.", "error");
-  }
+  if (result.ok) { closeModal(); showToast(`Password reset for "${username}"`, "success"); }
+  else modalAlert(result.data?.detail || "Failed.", "error");
 }
 
-// ── Delete Modal ──────────────────────────────────────────────────────────────
 function openDeleteModal(userId, username) {
   openModal(`
     <div class="ids-modal-header">
@@ -574,50 +616,34 @@ function openDeleteModal(userId, username) {
     </div>
     <div id="modalAlert" class="alert-area d-none mb-3"></div>
     <div style="text-align:center;padding:10px 0 20px">
-      <div style="font-size:2.5rem;color:var(--danger);margin-bottom:12px">⚠️</div>
-      <p style="color:var(--text-main);font-weight:700;font-size:1rem">
+      <div style="font-size:2.5rem;margin-bottom:12px">⚠️</div>
+      <p style="font-weight:700;font-size:1rem;color:var(--text-main)">
         Permanently delete <span style="color:var(--danger)">"${username}"</span>?
       </p>
-      <p style="color:var(--text-muted);font-size:0.85rem">
-        This action cannot be undone. All data associated with this user will be removed.
-      </p>
+      <p style="color:var(--text-muted);font-size:0.85rem">This cannot be undone.</p>
     </div>
     <div class="ids-modal-footer">
       <button class="btn-modal-cancel" onclick="closeModal()">Cancel</button>
       <button class="btn-modal-danger" onclick="submitDelete(${userId},'${username}')">
-        <i class="bi bi-trash3 me-1"></i>Yes, Delete Permanently
+        <i class="bi bi-trash3 me-1"></i>Delete Permanently
       </button>
     </div>`);
 }
 
 async function submitDelete(userId, username) {
   const result = await API.deleteUser(userId);
-  if (result.ok) {
-    closeModal();
-    showToast(`"${username}" deleted permanently`, "success");
-    loadUsers();
-  } else {
-    modalAlert(result.data?.detail || "Failed to delete user.", "error");
-  }
+  if (result.ok) { closeModal(); showToast(`"${username}" deleted`, "success"); loadUsers(); }
+  else modalAlert(result.data?.detail || "Failed.", "error");
 }
 
-// ── Toggle Activate/Deactivate ────────────────────────────────────────────────
 async function toggleActive(userId, username, activate) {
-  const ok = activate
-    ? await API.activateUser(userId)
-    : await API.deactivateUser(userId);
-  if (ok) {
-    showToast(`"${username}" ${activate ? "activated" : "deactivated"}`, "success");
-    loadUsers();
-  } else {
-    showToast("Action failed", "error");
-  }
+  const ok = activate ? await API.activateUser(userId) : await API.deactivateUser(userId);
+  if (ok) { showToast(`"${username}" ${activate?"activated":"deactivated"}`, "success"); loadUsers(); }
+  else showToast("Action failed", "error");
 }
 
-// ── Modal alert helper ────────────────────────────────────────────────────────
 function modalAlert(msg, type) {
-  const el = document.getElementById("modalAlert");
-  if (!el) return;
+  const el = document.getElementById("modalAlert"); if (!el) return;
   el.textContent = msg; el.className = `alert-area ${type}`;
 }
 
@@ -625,9 +651,9 @@ function modalAlert(msg, type) {
 // MISC
 // ══════════════════════════════════════════════════════════════════════════════
 function toggleSidebar() {
-  const sb   = document.getElementById("sidebar");
+  const sb = document.getElementById("sidebar");
   const main = document.getElementById("mainContent");
-  if (window.innerWidth <= 768) { sb.classList.toggle("open"); }
+  if (window.innerWidth <= 768) sb.classList.toggle("open");
   else { sb.classList.toggle("collapsed"); main.classList.toggle("expanded"); }
 }
 

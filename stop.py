@@ -1,48 +1,32 @@
-"""
-Stop all IDS-ML servers
-"""
+# stop.py — cleanly kill all IDS-ML servers
+import subprocess, sys
 
-import subprocess
-import sys
-import platform
+PORTS = [8000, 8001, 3000, 8080, 5500, 4000]
 
-def kill_port(port):
-    """Kill process running on specified port"""
-    system = platform.system()
+print("🛑 Stopping all IDS-ML servers...")
+killed = 0
 
-    if system == "Windows":
-        # Find PID using port
+for port in PORTS:
+    try:
         result = subprocess.run(
-            f'netstat -ano | findstr :{port}',
-            shell=True,
-            capture_output=True,
-            text=True
+            ["netstat", "-ano"], capture_output=True, text=True, timeout=5
         )
+        for line in result.stdout.splitlines():
+            parts = line.split()
+            if len(parts) >= 5 and f":{port}" in parts[1]:
+                pid = parts[4]
+                if pid.isdigit() and pid != "0":
+                    r = subprocess.run(
+                        ["taskkill", "/PID", pid, "/F"],
+                        capture_output=True, timeout=5
+                    )
+                    if r.returncode == 0:
+                        print(f"   ✅ Killed PID {pid} (port {port})")
+                        killed += 1
+    except Exception as e:
+        print(f"   ⚠️  Error checking port {port}: {e}")
 
-        if result.stdout:
-            lines = result.stdout.strip().split('\n')
-            for line in lines:
-                parts = line.split()
-                if len(parts) >= 5:
-                    pid = parts[-1]
-                    print(f"Killing process {pid} on port {port}...")
-                    subprocess.run(f'taskkill /PID {pid} /F', shell=True)
-    else:
-        # Linux/Mac
-        subprocess.run(f'lsof -ti:{port} | xargs kill -9', shell=True)
-
-def main():
-    print("=" * 60)
-    print("STOPPING IDS-ML SYSTEM")
-    print("=" * 60)
-
-    print("\nStopping backend (port 8000)...")
-    kill_port(8000)
-
-    print("Stopping frontend (port 3000)...")
-    kill_port(3000)
-
-    print("\n✅ All servers stopped!")
-
-if __name__ == "__main__":
-    main()
+if killed == 0:
+    print("   ℹ️  No IDS-ML processes were running.")
+else:
+    print(f"\n✅ Stopped {killed} process(es).")

@@ -1,5 +1,5 @@
 // js/auth.js — JWT token management
-const API_BASE = "http://localhost:8000";
+const API_BASE = "http://localhost:8001";
 
 const Auth = {
   // Save token + user info
