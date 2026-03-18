@@ -1,6 +1,6 @@
 # backend/main.py
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, File, UploadFile
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
@@ -11,10 +11,12 @@ from typing import Optional
 
 from backend.database import create_tables, get_db, verify_connection
 from backend.models import User, RoleRequest, PasswordResetRequest
+from backend.models_pcap import PcapAnalysis
 from backend.auth import (
     create_access_token, hash_password, verify_password,
     get_current_user, Token, UserOut, require_roles
 )
+from backend.pcap_analyzer import run_analysis, _orm_to_dict
 
 DEFAULT_ADMIN = {
     "username": "admin",
@@ -24,10 +26,9 @@ DEFAULT_ADMIN = {
 }
 
 def seed_default_admin(db):
-    """Create default admin on first boot if no admin exists."""
     existing = db.query(User).filter(User.username == DEFAULT_ADMIN["username"]).first()
     if existing:
-        return  # already seeded
+        return
     admin = User(
         username        = DEFAULT_ADMIN["username"],
         email           = DEFAULT_ADMIN["email"],
@@ -51,6 +52,10 @@ async def lifespan(app: FastAPI):
     try:
         verify_connection()
         create_tables()
+        # Ensure PCAP analysis table exists
+        from backend.database import engine
+        PcapAnalysis.__table__.create(bind=engine, checkfirst=True)
+        print("[DB] ✅ Table ensured: pcap_analysis")
         db = next(get_db())
         try:
             seed_default_admin(db)
@@ -66,7 +71,9 @@ app = FastAPI(title="IDS-ML v2.0 API", version="2.0.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
     allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
-# ── Schemas ───────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# SCHEMAS
+# ══════════════════════════════════════════════════════════════════════════════
 class PublicRegister(BaseModel):
     username: str
     email: str
@@ -97,11 +104,42 @@ class ResetPassword(BaseModel):
     new_password: str
 
 class ForgotPasswordRequest(BaseModel):
-    identifier: str          # username or email
+    identifier: str
     reason: Optional[str] = ""
 
 class AdminResolveReset(BaseModel):
     new_password: str
+
+# ── PCAP Schemas ──────────────────────────────────────────────────────────────
+class PcapResultOut(BaseModel):
+    id:               int
+    filename:         str
+    sha256:           str
+    file_size:        int
+    total_packets:    int
+    total_bytes:      int
+    duration_seconds: float
+    unique_src_ips:   int
+    unique_dst_ips:   int
+    top_protocols:    str
+    avg_packet_size:  float
+    max_packet_size:  int
+    tcp_packets:      int
+    udp_packets:      int
+    icmp_packets:     int
+    bytes_per_second: float
+    first_seen:       Optional[str] = None
+    last_seen:        Optional[str] = None
+    created_at:       Optional[str] = None
+
+    class Config:
+        from_attributes = True   # Pydantic v2
+        # orm_mode = True        # uncomment for Pydantic v1
+
+class PcapAnalysisResponse(BaseModel):
+    duplicate: bool
+    message:   str
+    result:    PcapResultOut
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def user_dict(u):
@@ -110,7 +148,9 @@ def user_dict(u):
             "is_active":u.is_active,"created_at":str(u.created_at),
             "last_login":str(u.last_login) if u.last_login else None}
 
-# ── Root / Health ─────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# ROOT / HEALTH
+# ══════════════════════════════════════════════════════════════════════════════
 @app.get("/", include_in_schema=False)
 async def root(): return RedirectResponse(url="/docs")
 
@@ -125,7 +165,6 @@ async def health():
 async def login(form_data: OAuth2PasswordRequestForm = Depends(),
                 db: Session = Depends(get_db)):
     identifier = form_data.username.strip()
-    # Accept username OR email
     user = (
         db.query(User).filter(User.username == identifier).first() or
         db.query(User).filter(User.email    == identifier).first()
@@ -149,7 +188,8 @@ async def register(data: PublicRegister, db: Session = Depends(get_db)):
     u = User(username=data.username, email=data.email,
              hashed_password=hash_password(data.password), role="viewer", is_active=True)
     db.add(u); db.commit(); db.refresh(u)
-    return {"message":"Account created! You have been assigned the viewer role.", "username":u.username, "role":u.role}
+    return {"message":"Account created! You have been assigned the viewer role.",
+            "username":u.username, "role":u.role}
 
 @app.get("/me", response_model=UserOut, tags=["Auth"])
 async def get_me(me: User = Depends(get_current_user)):
@@ -161,7 +201,6 @@ async def get_me(me: User = Depends(get_current_user)):
 @app.patch("/me/profile", tags=["Self"])
 async def update_profile(data: UpdateProfile, db: Session = Depends(get_db),
                          me: User = Depends(get_current_user)):
-    """Update own email and/or display name."""
     if data.email and data.email != me.email:
         if db.query(User).filter(User.email == data.email, User.id != me.id).first():
             raise HTTPException(400, "Email already in use by another account")
@@ -174,7 +213,6 @@ async def update_profile(data: UpdateProfile, db: Session = Depends(get_db),
 @app.patch("/me/password", tags=["Self"])
 async def change_password(data: ChangePassword, db: Session = Depends(get_db),
                           me: User = Depends(get_current_user)):
-    """Change own password — requires current password."""
     if not verify_password(data.current_password, me.hashed_password):
         raise HTTPException(400, "Current password is incorrect")
     if len(data.new_password) < 6:
@@ -187,21 +225,17 @@ async def change_password(data: ChangePassword, db: Session = Depends(get_db),
 @app.post("/me/role-request", tags=["Self"], status_code=201)
 async def request_role(data: RoleRequestCreate, db: Session = Depends(get_db),
                        me: User = Depends(get_current_user)):
-    """Submit an access upgrade request for admin review."""
     valid = {"admin","analyst","viewer"}
     if data.requested_role not in valid:
         raise HTTPException(400, "Invalid role")
     if data.requested_role == me.role:
         raise HTTPException(400, f"You already have the '{me.role}' role")
-
-    # Only 1 pending request allowed at a time
     existing = db.query(RoleRequest).filter(
         RoleRequest.user_id == me.id,
         RoleRequest.status  == "pending"
     ).first()
     if existing:
         raise HTTPException(400, "You already have a pending access request. Wait for admin review.")
-
     req = RoleRequest(user_id=me.id, username=me.username,
                       current_role=me.role, requested_role=data.requested_role,
                       reason=data.reason or "")
@@ -212,7 +246,6 @@ async def request_role(data: RoleRequestCreate, db: Session = Depends(get_db),
 @app.get("/me/role-request", tags=["Self"])
 async def my_role_request(db: Session = Depends(get_db),
                           me: User = Depends(get_current_user)):
-    """Get own pending role request (if any)."""
     req = db.query(RoleRequest).filter(
         RoleRequest.user_id == me.id
     ).order_by(RoleRequest.created_at.desc()).first()
@@ -220,31 +253,27 @@ async def my_role_request(db: Session = Depends(get_db),
     return {"request": {"id":req.id,"requested_role":req.requested_role,
             "current_role":req.current_role,"reason":req.reason,
             "status":req.status,"created_at":str(req.created_at),
-            "reviewed_by":req.reviewed_by,"reviewed_at":str(req.reviewed_at) if req.reviewed_at else None}}
+            "reviewed_by":req.reviewed_by,
+            "reviewed_at":str(req.reviewed_at) if req.reviewed_at else None}}
 
 # ══════════════════════════════════════════════════════════════════════════════
-# FORGOT PASSWORD  (public — no auth required)
+# FORGOT PASSWORD  (public)
 # ══════════════════════════════════════════════════════════════════════════════
 @app.post("/forgot-password", tags=["Auth"], status_code=201)
 async def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get_db)):
-    """Submit a password reset request — admin will be notified to set a new password."""
     identifier = data.identifier.strip()
     user = (
         db.query(User).filter(User.username == identifier).first() or
         db.query(User).filter(User.email    == identifier).first()
     )
     if not user:
-        # Return success anyway to prevent username/email enumeration
         return {"message": "If that account exists, a reset request has been submitted."}
-
-    # Limit: 1 pending reset request per user
     existing = db.query(PasswordResetRequest).filter(
         PasswordResetRequest.user_id == user.id,
         PasswordResetRequest.status  == "pending"
     ).first()
     if existing:
         return {"message": "A reset request is already pending. Please wait for admin to process it."}
-
     req = PasswordResetRequest(
         user_id  = user.id,
         username = user.username,
@@ -254,45 +283,30 @@ async def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get
     db.add(req); db.commit(); db.refresh(req)
     return {"message": "Reset request submitted. An administrator will set a new temporary password for you."}
 
-
 # ══════════════════════════════════════════════════════════════════════════════
 # ADMIN — PASSWORD RESET MANAGEMENT
 # ══════════════════════════════════════════════════════════════════════════════
 @app.get("/admin/password-resets", tags=["Admin"])
 async def list_reset_requests(db: Session = Depends(get_db),
                                _=Depends(require_roles("admin"))):
-    """List all password reset requests."""
     reqs = db.query(PasswordResetRequest).order_by(
         PasswordResetRequest.created_at.desc()).all()
-    return [{
-        "id":          r.id,
-        "user_id":     r.user_id,
-        "username":    r.username,
-        "email":       r.email,
-        "reason":      r.reason,
-        "status":      r.status,
-        "created_at":  str(r.created_at),
-        "resolved_at": str(r.resolved_at) if r.resolved_at else None,
-        "resolved_by": r.resolved_by,
-    } for r in reqs]
+    return [{"id":r.id,"user_id":r.user_id,"username":r.username,
+             "email":r.email,"reason":r.reason,"status":r.status,
+             "created_at":str(r.created_at),
+             "resolved_at":str(r.resolved_at) if r.resolved_at else None,
+             "resolved_by":r.resolved_by} for r in reqs]
 
 @app.post("/admin/password-resets/{req_id}/resolve", tags=["Admin"])
 async def resolve_reset(req_id: int, data: AdminResolveReset,
                         db: Session = Depends(get_db),
                         me: User = Depends(require_roles("admin"))):
-    """Admin sets a new temporary password for the user."""
     req = db.query(PasswordResetRequest).filter(PasswordResetRequest.id == req_id).first()
-    if not req:
-        raise HTTPException(404, "Reset request not found")
-    if req.status != "pending":
-        raise HTTPException(400, f"Request already {req.status}")
-
+    if not req: raise HTTPException(404, "Reset request not found")
+    if req.status != "pending": raise HTTPException(400, f"Request already {req.status}")
     user = db.query(User).filter(User.id == req.user_id).first()
-    if not user:
-        raise HTTPException(404, "User not found")
-    if len(data.new_password) < 6:
-        raise HTTPException(400, "Password must be at least 6 characters")
-
+    if not user: raise HTTPException(404, "User not found")
+    if len(data.new_password) < 6: raise HTTPException(400, "Password must be at least 6 characters")
     user.hashed_password = hash_password(data.new_password)
     req.status      = "resolved"
     req.resolved_at = datetime.utcnow()
@@ -303,16 +317,12 @@ async def resolve_reset(req_id: int, data: AdminResolveReset,
 @app.post("/admin/password-resets/{req_id}/dismiss", tags=["Admin"])
 async def dismiss_reset(req_id: int, db: Session = Depends(get_db),
                         me: User = Depends(require_roles("admin"))):
-    """Admin dismisses a reset request without changing password."""
     req = db.query(PasswordResetRequest).filter(PasswordResetRequest.id == req_id).first()
-    if not req:
-        raise HTTPException(404, "Reset request not found")
+    if not req: raise HTTPException(404, "Reset request not found")
     req.status      = "dismissed"
     req.resolved_at = datetime.utcnow()
-    req.resolved_by = me.username
     db.commit()
     return {"message": "Request dismissed."}
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ADMIN — USER MANAGEMENT
@@ -401,7 +411,6 @@ async def approve_request(req_id: int, db: Session = Depends(get_db),
     req = db.query(RoleRequest).filter(RoleRequest.id == req_id).first()
     if not req: raise HTTPException(404, "Request not found")
     if req.status != "pending": raise HTTPException(400, f"Request already {req.status}")
-    # Apply role change
     user = db.query(User).filter(User.id == req.user_id).first()
     if user: user.role = req.requested_role
     req.status = "approved"; req.reviewed_by = me.username; req.reviewed_at = datetime.utcnow()
@@ -418,6 +427,46 @@ async def reject_request(req_id: int, db: Session = Depends(get_db),
     db.commit()
     return {"message": f"Rejected access request from '{req.username}'"}
 
+# ══════════════════════════════════════════════════════════════════════════════
+# PCAP ANALYSIS
+# ══════════════════════════════════════════════════════════════════════════════
+@app.post(
+    "/analyze-pcap",
+    response_model=PcapAnalysisResponse,
+    tags=["PCAP"],
+    summary="Upload and analyse a PCAP/PCAPNG/CAP file",
+)
+async def analyze_pcap(
+    file: UploadFile = File(..., description="Network capture file (.pcap/.pcapng/.cap)"),
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    try:
+        return await run_analysis(file, db, PcapAnalysis)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+@app.get(
+    "/analyze-pcap/history",
+    tags=["PCAP"],
+    summary="List previous PCAP analyses (newest first)",
+)
+async def pcap_history(
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    rows = (
+        db.query(PcapAnalysis)
+        .order_by(PcapAnalysis.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [_orm_to_dict(r) for r in rows]
+
+# ══════════════════════════════════════════════════════════════════════════════
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)
