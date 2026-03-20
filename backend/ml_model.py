@@ -5,6 +5,7 @@ import numpy as np
 import joblib
 from pathlib import Path
 from typing import Dict, Any, List
+import pandas as pd
 
 log = logging.getLogger(__name__)
 
@@ -37,6 +38,13 @@ RISK_BANDS = [
     (0.50, "High"),
     (0.25, "Medium"),
     (0.00, "Low"),
+]
+
+ATTACK_TYPES = [
+    "back", "buffer_overflow", "ftp_write", "guess_passwd", "imap",
+    "ipsweep", "land", "loadmodule", "multihop", "neptune", "nmap",
+    "normal", "perl", "phf", "pod", "portsweep", "rootkit", "satan",
+    "smurf", "spy", "teardrop", "warezclient", "warezmaster",
 ]
 
 
@@ -158,15 +166,31 @@ class IDSModel:
         return np.array(vec, dtype=np.float64).reshape(1, -1)
 
     # ── Run inference ─────────────────────────────────────────────────────────
-    def _infer(self, vec: np.ndarray) -> float:
+    def _infer(self, vec: np.ndarray):
+        """Returns (score: float, attack_type: str)"""
         if self.scaler:
-            vec = self.scaler.transform(vec)
-
-        proba  = self.model.predict_proba(vec)[0]
-        # Attack probability = 1 - P(normal class)
-        score  = float(1.0 - proba[self._normal_idx])
-        return round(min(max(score, 0.0), 1.0), 4)
-
+            # Pass named DataFrame so scaler doesn't warn about missing feature names
+            df = pd.DataFrame(vec, columns=FEATURE_NAMES)
+            vec = self.scaler.transform(df)
+        
+        proba = self.model.predict_proba(vec)[0]
+        classes = list(self.model.classes_)
+        
+        try:
+            normal_idx = classes.index(self._normal_idx)
+            score = float(1.0 - proba[normal_idx])
+        except (ValueError, AttributeError):
+            score = float(1.0 - proba[0])
+        
+        pred_class = int(self.model.predict(vec)[0])
+        attack_type = (
+            ATTACK_TYPES[pred_class]
+            if pred_class < len(ATTACK_TYPES)
+            else "unknown"
+        )
+        
+        return round(min(max(score, 0.0), 1.0), 4), attack_type
+    
     # ── Heuristic fallback ────────────────────────────────────────────────────
     def _heuristic_score(self, f: Dict[str, float]) -> float:
         score = 0.0
@@ -194,20 +218,22 @@ class IDSModel:
     def predict(self, features: Dict[str, float]) -> Dict[str, Any]:
         if self.model:
             try:
-                score = self._infer(self._build_vector(features))
+                score, attack_type = self._infer(self._build_vector(features))
                 return {
                     "risk_score": score,
                     "risk_label": score_to_label(score),
                     "model_used": self.model_name,
+                    "attack_type": attack_type,
                 }
             except Exception as e:
                 log.error("Model inference error: %s — falling back to heuristic", e)
-
+        
         score = self._heuristic_score(features)
         return {
             "risk_score": score,
             "risk_label": score_to_label(score),
             "model_used": "heuristic",
+            "attack_type": "unknown",
         }
 
 

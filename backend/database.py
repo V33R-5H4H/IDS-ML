@@ -191,10 +191,11 @@ def run_migrations():
             ("resolved_by", "VARCHAR"),
         ],
         "pcap_analysis": [
-            ("risk_score", "REAL    NOT NULL DEFAULT 0.0"),
-            ("risk_label", "TEXT    NOT NULL DEFAULT 'Unknown'"),
-            ("model_used", "TEXT    NOT NULL DEFAULT 'heuristic'"),
-        ],
+            ("risk_score",  "REAL NOT NULL DEFAULT 0.0"),
+            ("risk_label",  "TEXT NOT NULL DEFAULT 'Unknown'"),
+            ("model_used",  "TEXT NOT NULL DEFAULT 'heuristic'"),
+            ("attack_type", "TEXT NOT NULL DEFAULT 'unknown'"),
+],
     }
 
     with engine.connect() as conn:

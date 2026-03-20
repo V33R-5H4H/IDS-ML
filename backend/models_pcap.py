@@ -6,31 +6,30 @@ from .database import Base
 class PcapAnalysis(Base):
     __tablename__ = "pcap_analysis"
 
-    id         = Column(Integer,    primary_key=True, index=True)
-    filename   = Column(String(255), nullable=False)
-    sha256     = Column(String(64),  unique=True, index=True, nullable=False)
-    file_size  = Column(BigInteger,  nullable=False)
+    id        = Column(Integer,     primary_key=True, index=True)
+    filename  = Column(String(255), nullable=False)
+    sha256    = Column(String(64),  unique=True, index=True, nullable=False)
+    file_size = Column(BigInteger,  nullable=False)
 
-    # 12 extracted features
-    total_packets     = Column(Integer)
-    total_bytes       = Column(BigInteger)
-    duration_seconds  = Column(Float)
-    unique_src_ips    = Column(Integer)
-    unique_dst_ips    = Column(Integer)
-    top_protocols     = Column(String(128))
-    avg_packet_size   = Column(Float)
-    max_packet_size   = Column(Integer)
-    tcp_packets       = Column(Integer)
-    udp_packets       = Column(Integer)
-    icmp_packets      = Column(Integer)
-    bytes_per_second  = Column(Float)
+    total_packets    = Column(Integer)
+    total_bytes      = Column(BigInteger)
+    duration_seconds = Column(Float)
+    unique_src_ips   = Column(Integer)
+    unique_dst_ips   = Column(Integer)
+    top_protocols    = Column(String(128))
+    avg_packet_size  = Column(Float)
+    max_packet_size  = Column(Integer)
+    tcp_packets      = Column(Integer)
+    udp_packets      = Column(Integer)
+    icmp_packets     = Column(Integer)
+    bytes_per_second = Column(Float)
 
-    # ML Risk scoring  ← NEW
+    # ML output columns
     risk_score  = Column(Float,  nullable=False, default=0.0)
     risk_label  = Column(String, nullable=False, default="Unknown")
     model_used  = Column(String, nullable=False, default="heuristic")
+    attack_type = Column(String, nullable=False, default="unknown")
 
-    # Metadata
-    first_seen  = Column(String(32))
-    last_seen   = Column(String(32))
-    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+    first_seen = Column(String(32))
+    last_seen  = Column(String(32))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

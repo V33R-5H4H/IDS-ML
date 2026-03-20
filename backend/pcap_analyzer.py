@@ -9,6 +9,13 @@ logger = logging.getLogger("ids_ml.pcap")
 ALLOWED_EXTENSIONS = {".pcap", ".pcapng", ".cap"}
 MAX_FILE_SIZE      = 100 * 1024 * 1024   # 100 MB
 
+ATTACK_TYPES = [
+    "back", "buffer_overflow", "ftp_write", "guess_passwd", "imap",
+    "ipsweep", "land", "loadmodule", "multihop", "neptune", "nmap",
+    "normal", "perl", "phf", "pod", "portsweep", "rootkit", "satan",
+    "smurf", "spy", "teardrop", "warezclient", "warezmaster",
+]
+
 
 def _validate_file(filename: str, size: int):
     ext = os.path.splitext(filename)[1].lower()
@@ -20,7 +27,8 @@ def _validate_file(filename: str, size: int):
         raise ValueError("File is empty")
     if size > MAX_FILE_SIZE:
         raise ValueError(
-            f"File too large ({size/1024/1024:.1f} MB). Max is {MAX_FILE_SIZE//1024//1024} MB"
+            f"File too large ({size/1024/1024:.1f} MB). "
+            f"Max is {MAX_FILE_SIZE//1024//1024} MB"
         )
 
 
@@ -55,11 +63,10 @@ def _orm_to_dict(r) -> dict:
         "udp_packets":      r.udp_packets,
         "icmp_packets":     r.icmp_packets,
         "bytes_per_second": r.bytes_per_second,
-        # ML risk  ← NEW
-        "risk_score":       getattr(r, "risk_score", 0.0),
-        "risk_label":       getattr(r, "risk_label", "Unknown"),
-        "model_used":       getattr(r, "model_used",  "heuristic"),
-        # Timestamps
+        "risk_score":       getattr(r, "risk_score",   0.0),
+        "risk_label":       getattr(r, "risk_label",   "Unknown"),
+        "model_used":       getattr(r, "model_used",   "heuristic"),
+        "attack_type":      getattr(r, "attack_type",  "unknown"),
         "first_seen":       r.first_seen,
         "last_seen":        r.last_seen,
         "created_at":       str(r.created_at) if hasattr(r, "created_at") else None,
@@ -82,7 +89,7 @@ async def run_analysis(file: UploadFile, db, PcapAnalysis) -> dict:
             "result":    _orm_to_dict(existing),
         }
 
-    # Write to temp file and extract features
+    # Extract features
     tmp_path = _save_temp(data)
     try:
         features = extract_features(tmp_path)
@@ -97,14 +104,13 @@ async def run_analysis(file: UploadFile, db, PcapAnalysis) -> dict:
         except OSError:
             pass
 
-    # ── ML risk scoring  ← NEW ────────────────────────────────────────────────
+    # ML risk scoring + attack type detection
     risk = ids_model.predict(features)
     logger.info(
-        f"ML score for {file.filename}: "
-        f"{risk['risk_label']} ({risk['risk_score']:.4f}) "
+        f"{file.filename} → {risk['risk_label']} "
+        f"({risk['risk_score']:.4f}) [{risk['attack_type']}] "
         f"via {risk['model_used']}"
     )
-    # ── END ML scoring ────────────────────────────────────────────────────────
 
     record = PcapAnalysis(
         filename          = file.filename,
@@ -124,10 +130,10 @@ async def run_analysis(file: UploadFile, db, PcapAnalysis) -> dict:
         bytes_per_second  = features["bytes_per_second"],
         first_seen        = features["first_seen"],
         last_seen         = features["last_seen"],
-        # ML risk  ← NEW
         risk_score        = risk["risk_score"],
         risk_label        = risk["risk_label"],
         model_used        = risk["model_used"],
+        attack_type       = risk["attack_type"],
     )
     db.add(record)
     db.commit()

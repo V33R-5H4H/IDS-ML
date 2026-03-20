@@ -128,17 +128,17 @@ class PcapResultOut(BaseModel):
     udp_packets:      int
     icmp_packets:     int
     bytes_per_second: float
-    # ML risk scoring  ← NEW
     risk_score:       Optional[float] = None
     risk_label:       Optional[str]   = None
     model_used:       Optional[str]   = None
-    # Metadata
+    attack_type:      Optional[str]   = None
     first_seen:       Optional[str]   = None
     last_seen:        Optional[str]   = None
     created_at:       Optional[str]   = None
 
     class Config:
-        from_attributes = True   # Pydantic v2
+        from_attributes = True # Pydantic v2
+        protected_namespaces = ()
         # orm_mode = True        # uncomment for Pydantic v1
 
 class PcapAnalysisResponse(BaseModel):
