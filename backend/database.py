@@ -190,6 +190,11 @@ def run_migrations():
             ("resolved_at", "TIMESTAMP WITH TIME ZONE" if not is_sqlite else "DATETIME"),
             ("resolved_by", "VARCHAR"),
         ],
+        "pcap_analysis": [
+            ("risk_score", "REAL    NOT NULL DEFAULT 0.0"),
+            ("risk_label", "TEXT    NOT NULL DEFAULT 'Unknown'"),
+            ("model_used", "TEXT    NOT NULL DEFAULT 'heuristic'"),
+        ],
     }
 
     with engine.connect() as conn:

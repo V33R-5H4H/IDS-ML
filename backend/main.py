@@ -128,9 +128,14 @@ class PcapResultOut(BaseModel):
     udp_packets:      int
     icmp_packets:     int
     bytes_per_second: float
-    first_seen:       Optional[str] = None
-    last_seen:        Optional[str] = None
-    created_at:       Optional[str] = None
+    # ML risk scoring  ← NEW
+    risk_score:       Optional[float] = None
+    risk_label:       Optional[str]   = None
+    model_used:       Optional[str]   = None
+    # Metadata
+    first_seen:       Optional[str]   = None
+    last_seen:        Optional[str]   = None
+    created_at:       Optional[str]   = None
 
     class Config:
         from_attributes = True   # Pydantic v2

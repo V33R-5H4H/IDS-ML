@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.database  import get_db
 from app.auth      import get_current_user
 from app.models    import User, PcapAnalysis
-from app.ml_model  import ids_model
+from backend.ml_model import ids_model
 
 log    = logging.getLogger(__name__)
 router = APIRouter()

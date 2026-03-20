@@ -2,6 +2,7 @@
 import hashlib, os, tempfile, logging
 from fastapi import UploadFile
 from .packet_extractor import extract_features
+from .ml_model import ids_model
 
 logger = logging.getLogger("ids_ml.pcap")
 
@@ -54,6 +55,11 @@ def _orm_to_dict(r) -> dict:
         "udp_packets":      r.udp_packets,
         "icmp_packets":     r.icmp_packets,
         "bytes_per_second": r.bytes_per_second,
+        # ML risk  ← NEW
+        "risk_score":       getattr(r, "risk_score", 0.0),
+        "risk_label":       getattr(r, "risk_label", "Unknown"),
+        "model_used":       getattr(r, "model_used",  "heuristic"),
+        # Timestamps
         "first_seen":       r.first_seen,
         "last_seen":        r.last_seen,
         "created_at":       str(r.created_at) if hasattr(r, "created_at") else None,
@@ -67,6 +73,7 @@ async def run_analysis(file: UploadFile, db, PcapAnalysis) -> dict:
     digest = _sha256(data)
     logger.info(f"PCAP upload: {file.filename}  sha256={digest[:12]}...")
 
+    # Return cached result if same file was analysed before
     existing = db.query(PcapAnalysis).filter(PcapAnalysis.sha256 == digest).first()
     if existing:
         return {
@@ -75,6 +82,7 @@ async def run_analysis(file: UploadFile, db, PcapAnalysis) -> dict:
             "result":    _orm_to_dict(existing),
         }
 
+    # Write to temp file and extract features
     tmp_path = _save_temp(data)
     try:
         features = extract_features(tmp_path)
@@ -89,24 +97,37 @@ async def run_analysis(file: UploadFile, db, PcapAnalysis) -> dict:
         except OSError:
             pass
 
+    # ── ML risk scoring  ← NEW ────────────────────────────────────────────────
+    risk = ids_model.predict(features)
+    logger.info(
+        f"ML score for {file.filename}: "
+        f"{risk['risk_label']} ({risk['risk_score']:.4f}) "
+        f"via {risk['model_used']}"
+    )
+    # ── END ML scoring ────────────────────────────────────────────────────────
+
     record = PcapAnalysis(
-        filename         = file.filename,
-        sha256           = digest,
-        file_size        = len(data),
-        total_packets    = features["total_packets"],
-        total_bytes      = features["total_bytes"],
-        duration_seconds = features["duration_seconds"],
-        unique_src_ips   = features["unique_src_ips"],
-        unique_dst_ips   = features["unique_dst_ips"],
-        top_protocols    = features["top_protocols"],
-        avg_packet_size  = features["avg_packet_size"],
-        max_packet_size  = features["max_packet_size"],
-        tcp_packets      = features["tcp_packets"],
-        udp_packets      = features["udp_packets"],
-        icmp_packets     = features["icmp_packets"],
-        bytes_per_second = features["bytes_per_second"],
-        first_seen       = features["first_seen"],
-        last_seen        = features["last_seen"],
+        filename          = file.filename,
+        sha256            = digest,
+        file_size         = len(data),
+        total_packets     = features["total_packets"],
+        total_bytes       = features["total_bytes"],
+        duration_seconds  = features["duration_seconds"],
+        unique_src_ips    = features["unique_src_ips"],
+        unique_dst_ips    = features["unique_dst_ips"],
+        top_protocols     = features["top_protocols"],
+        avg_packet_size   = features["avg_packet_size"],
+        max_packet_size   = features["max_packet_size"],
+        tcp_packets       = features["tcp_packets"],
+        udp_packets       = features["udp_packets"],
+        icmp_packets      = features["icmp_packets"],
+        bytes_per_second  = features["bytes_per_second"],
+        first_seen        = features["first_seen"],
+        last_seen         = features["last_seen"],
+        # ML risk  ← NEW
+        risk_score        = risk["risk_score"],
+        risk_label        = risk["risk_label"],
+        model_used        = risk["model_used"],
     )
     db.add(record)
     db.commit()
