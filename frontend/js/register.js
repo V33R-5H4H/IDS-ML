@@ -1,103 +1,105 @@
 // js/register.js
+
 document.addEventListener("DOMContentLoaded", () => {
-  if (Auth.isLoggedIn()) { window.location.href = "dashboard.html"; return; }
-  generateParticles();
-  document.getElementById("password").addEventListener("input", updateStrength);
+  if (typeof Auth !== "undefined" && Auth.isLoggedIn()) {
+    window.location.href = "dashboard.html";
+    return;
+  }
+  document.getElementById("regUsername")?.focus();
 });
 
-document.getElementById("registerForm").addEventListener("submit", async (e) => {
+async function handleRegister(e) {
   e.preventDefault();
-  const username = document.getElementById("username").value.trim();
-  const email    = document.getElementById("email").value.trim();
-  const password = document.getElementById("password").value;
-  const confirm  = document.getElementById("confirmPassword").value;
 
-  if (!username || !email || !password || !confirm) {
-    return showAlert("All fields are required.", "error");
-  }
-  if (username.length < 3) return showAlert("Username must be at least 3 characters.", "error");
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showAlert("Enter a valid email address.", "error");
-  if (password.length < 6) return showAlert("Password must be at least 6 characters.", "error");
-  if (password !== confirm) return showAlert("Passwords do not match.", "error");
+  const username = document.getElementById("regUsername").value.trim();
+  const email    = document.getElementById("regEmail").value.trim();
+  const password = document.getElementById("regPassword").value;
+  const confirm  = document.getElementById("regConfirm").value;
+  const btn      = document.getElementById("registerBtn");
 
-  setLoading(true); hideAlert();
+  clearAlert();
+
+  if (!username)          return showAlert("Username is required.", "error");
+  if (!email)             return showAlert("Email is required.", "error");
+  if (!password)          return showAlert("Password is required.", "error");
+  if (password.length < 6)return showAlert("Password must be at least 6 characters.", "error");
+  if (password !== confirm)return showAlert("Passwords do not match.", "error");
+
+  btn.disabled = true;
+  btn.innerHTML =
+    `<span class="spinner-sm"></span> Creating account…`;
 
   try {
-    const body = JSON.stringify({ username, email, password });
-    const res  = await fetch(`${API_BASE}/register`, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body
-    });
-    const data = await res.json();
-
-    if (!res.ok) {
-      showAlert(data.detail || "Registration failed.", "error");
-      return;
+    const result = await API.register(username, email, password);
+    if (result.ok) {
+      showAlert("Account created! Redirecting to login…", "success");
+      setTimeout(() => { window.location.href = "index.html"; }, 1600);
+    } else {
+      showAlert(result.data?.detail || "Registration failed. Try a different username.", "error");
+      btn.disabled = false;
+      btn.innerHTML = `<i class="bi bi-person-plus me-2"></i>Create Account`;
     }
-    showAlert("Account created! Redirecting to login...", "success");
-    setTimeout(() => { window.location.href = "index.html?registered=1"; }, 1800);
   } catch {
-    showAlert("Cannot connect to API. Is the server running?", "error");
-  } finally {
-    setLoading(false);
+    showAlert("Cannot connect to the server. Is the backend running?", "error");
+    btn.disabled = false;
+    btn.innerHTML = `<i class="bi bi-person-plus me-2"></i>Create Account`;
   }
-});
+}
 
-// Password strength
-function updateStrength() {
-  const val  = document.getElementById("password").value;
-  const fill = document.getElementById("pwdFill");
-  const lbl  = document.getElementById("pwdLabel");
-  let score  = 0;
-  if (val.length >= 6)          score++;
-  if (val.length >= 10)         score++;
-  if (/[A-Z]/.test(val))        score++;
-  if (/[0-9]/.test(val))        score++;
-  if (/[^A-Za-z0-9]/.test(val)) score++;
+// ── Password toggle ────────────────────────────────────────────
+function togglePw(inputId, btn) {
+  const input = document.getElementById(inputId);
+  const icon  = btn.querySelector("i");
+  if (!input) return;
+  if (input.type === "password") {
+    input.type     = "text";
+    icon.className = "bi bi-eye-slash";
+  } else {
+    input.type     = "password";
+    icon.className = "bi bi-eye";
+  }
+}
+
+// ── Strength bar ───────────────────────────────────────────────
+function updatePwStrength(val) {
+  const bar = document.getElementById("regPwBar");
+  const lbl = document.getElementById("regPwLabel");
+  if (!bar || !lbl) return;
+
+  let score = 0;
+  if (val.length >= 6)           score++;
+  if (val.length >= 10)          score++;
+  if (/[A-Z]/.test(val))         score++;
+  if (/[0-9]/.test(val))         score++;
+  if (/[^A-Za-z0-9]/.test(val))  score++;
 
   const levels = [
-    { w:"0%",   color:"transparent", text:"" },
-    { w:"25%",  color:"#ef4444",     text:"Weak" },
-    { w:"50%",  color:"#f59e0b",     text:"Fair" },
-    { w:"75%",  color:"#3b82f6",     text:"Good" },
-    { w:"100%", color:"#22c55e",     text:"Strong" },
+    { w: "0%",   bg: "transparent", txt: ""          },
+    { w: "20%",  bg: "#ef4444",     txt: "Weak"      },
+    { w: "40%",  bg: "#f59e0b",     txt: "Fair"      },
+    { w: "60%",  bg: "#f59e0b",     txt: "Good"      },
+    { w: "80%",  bg: "#22c55e",     txt: "Strong"    },
+    { w: "100%", bg: "#14b8a6",     txt: "Excellent" },
   ];
-  const lvl     = levels[Math.min(score, 4)];
-  fill.style.width      = lvl.w;
-  fill.style.background = lvl.color;
-  lbl.textContent       = lvl.text;
-  lbl.style.color       = lvl.color;
+  const lvl = levels[Math.min(score, 5)];
+  bar.style.width      = lvl.w;
+  bar.style.background = lvl.bg;
+  lbl.textContent      = lvl.txt;
+  lbl.style.color      = lvl.bg;
 }
 
-function togglePass(inputId, iconId) {
-  const inp  = document.getElementById(inputId);
-  const icon = document.getElementById(iconId);
-  const show = inp.type === "text";
-  inp.type       = show ? "password" : "text";
-  icon.className = show ? "bi bi-eye" : "bi bi-eye-slash";
-}
-
-function setLoading(on) {
-  const btn = document.getElementById("registerBtn");
-  document.getElementById("btnText").classList.toggle("d-none", on);
-  document.getElementById("btnSpinner").classList.toggle("d-none", !on);
-  btn.disabled = on;
-}
+// ── Alert helpers ──────────────────────────────────────────────
 function showAlert(msg, type) {
-  const b = document.getElementById("alertBox");
-  b.textContent = msg; b.className = `alert-area ${type}`;
+  const el = document.getElementById("registerAlert");
+  if (!el) return;
+  el.textContent = msg;
+  el.className   = `auth-alert ${type}`;
 }
-function hideAlert() {
-  document.getElementById("alertBox").className = "alert-area d-none";
-}
-function generateParticles() {
-  const c = document.getElementById("particles");
-  for (let i = 0; i < 20; i++) {
-    const p = document.createElement("div"); p.className = "particle";
-    const s = Math.random() * 12 + 4;
-    p.style.cssText = `width:${s}px;height:${s}px;left:${Math.random()*100}%;`
-      + `animation-duration:${Math.random()*15+8}s;animation-delay:${Math.random()*10}s;`;
-    c.appendChild(p);
-  }
+
+function clearAlert() {
+  const el = document.getElementById("registerAlert");
+  if (!el) return;
+  el.textContent = "";
+  el.className   = "auth-alert";
+  el.style.display = "none";
 }
