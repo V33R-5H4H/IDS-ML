@@ -69,7 +69,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   try {
     if (!Auth.requireAuth()) return;
 
-    // Show what API_BASE we're using
     console.log("[IDS-ML] API_BASE =", typeof API_BASE !== "undefined" ? API_BASE : "UNDEFINED");
 
     currentUser = await API.me();
@@ -77,7 +76,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (!currentUser) {
       console.error("[IDS-ML] API.me() returned null — token may be expired or backend unreachable");
-      // Show visible error instead of silently blanking
       document.body.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:center;height:100vh;
                     background:#0f1117;flex-direction:column;gap:16px">
@@ -173,7 +171,9 @@ function renderTopbarUser(user) {
 
 function renderProfileCard(user) {
   const el = document.getElementById("profileBody"); if (!el) return;
-  const name = user.display_name ? `${user.display_name} <span style="color:var(--text-muted);font-size:0.8rem">(${user.username})</span>` : user.username;
+  const name = user.display_name
+    ? `${user.display_name} <span style="color:var(--text-muted);font-size:0.8rem">(${user.username})</span>`
+    : user.username;
   el.innerHTML = `
     <div class="info-row"><span class="info-key">Name</span><span class="info-val">${name}</span></div>
     <div class="info-row"><span class="info-key">Email</span><span class="info-val">${user.email}</span></div>
@@ -330,7 +330,7 @@ function viewerPerms() { return [
 ].join(""); }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// NAVIGATION
+// NAVIGATION  ← ONLY CHANGE: added pcap hook on line marked below
 // ══════════════════════════════════════════════════════════════════════════════
 function setupNavigation(cfg) {
   document.querySelectorAll(".nav-item[data-section]").forEach(item => {
@@ -364,12 +364,10 @@ function navigateTo(section, cfg) {
   };
   document.getElementById("pageTitle").textContent = titles[section] || section;
   if (section === "users")    loadUsers();
-  if (section === "requests") {
-    loadRoleRequests("pending");
-    loadPasswordResets();
-  }
+  if (section === "requests") { loadRoleRequests("pending"); loadPasswordResets(); }
   if (section === "health")   checkAPIHealth();
   if (section === "account")  initAccountSection(currentUser);
+  if (section === "pcap")     { if (typeof loadPcapHistory === "function") loadPcapHistory(); } // ← NEW
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -421,7 +419,7 @@ async function loadUsers() {
               </button>
               ${u.is_active
                 ? `<button class="btn-sm-action deact" onclick="toggleActive(${u.id},'${u.username}',false)"><i class="bi bi-pause-circle"></i>Deactivate</button>`
-                : `<button class="btn-sm-action act"  onclick="toggleActive(${u.id},'${u.username}',true)"><i class="bi bi-play-circle"></i>Activate</button>`}
+                : `<button class="btn-sm-action act"   onclick="toggleActive(${u.id},'${u.username}',true)"><i class="bi bi-play-circle"></i>Activate</button>`}
               <button class="btn-sm-action pwd" onclick="openPwdModal(${u.id},'${u.username}')">
                 <i class="bi bi-key"></i>Password
               </button>
@@ -449,7 +447,6 @@ async function loadPendingReqBadge() {
 
 async function loadRoleRequests(status = "pending") {
   reqFilter = status;
-  // Update filter buttons
   document.querySelectorAll(".req-filter-btn").forEach(b => {
     b.classList.toggle("active", b.dataset.status === status);
   });
@@ -469,8 +466,8 @@ async function loadRoleRequests(status = "pending") {
   }
 
   list.innerHTML = reqs.map(r => {
-    const isPending  = r.status === "pending";
-    const timeAgo    = timeSince(r.created_at);
+    const isPending = r.status === "pending";
+    const timeAgo   = timeSince(r.created_at);
     return `<div class="req-card ${r.status}" id="req-card-${r.id}">
       <div class="req-card-top">
         <div class="req-card-user">
@@ -522,7 +519,6 @@ async function reviewRequest(reqId, action) {
     showToast(result.data.message, "success");
     loadRoleRequests(reqFilter);
     loadPendingReqBadge();
-    // If approved, refresh currentUser in case it's the logged-in user
     const me = await API.me();
     if (me) { currentUser = me; renderTopbarUser(currentUser); }
   } else {
@@ -533,14 +529,14 @@ async function reviewRequest(reqId, action) {
 
 function timeSince(dateStr) {
   const s = Math.floor((Date.now() - new Date(dateStr)) / 1000);
-  if (s < 60)   return `${s}s`;
-  if (s < 3600) return `${Math.floor(s/60)}m`;
-  if (s < 86400)return `${Math.floor(s/3600)}h`;
+  if (s < 60)    return `${s}s`;
+  if (s < 3600)  return `${Math.floor(s/60)}m`;
+  if (s < 86400) return `${Math.floor(s/3600)}h`;
   return `${Math.floor(s/86400)}d`;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// SHARED MODALS (admin user management)
+// SHARED MODALS
 // ══════════════════════════════════════════════════════════════════════════════
 function closeModal() {
   const m = document.getElementById("idsModal"); if (m) m.remove();
@@ -692,7 +688,7 @@ function modalAlert(msg, type) {
 // MISC
 // ══════════════════════════════════════════════════════════════════════════════
 function toggleSidebar() {
-  const sb = document.getElementById("sidebar");
+  const sb   = document.getElementById("sidebar");
   const main = document.getElementById("mainContent");
   if (window.innerWidth <= 768) sb.classList.toggle("open");
   else { sb.classList.toggle("collapsed"); main.classList.toggle("expanded"); }
@@ -713,13 +709,14 @@ function showToast(msg, type = "success") {
   setTimeout(() => { el.className = "ids-toast d-none"; }, 3500);
 }
 
-
-// ── Password Reset Requests (admin) ──────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// PASSWORD RESET REQUESTS (admin)
+// ══════════════════════════════════════════════════════════════════════════════
 let _pendingResolveId = null;
 
 async function loadPasswordResets() {
-  const wrap   = document.getElementById("pwdResetTable");
-  const badge  = document.getElementById("pwdResetBadge");
+  const wrap  = document.getElementById("pwdResetTable");
+  const badge = document.getElementById("pwdResetBadge");
   if (!wrap) return;
 
   let res;
@@ -739,16 +736,12 @@ async function loadPasswordResets() {
     wrap.innerHTML = `<p style="color:#f87171;padding:12px"><i class="bi bi-exclamation-triangle me-2"></i>${res.status}: ${errMsg}</p>`;
     return;
   }
-  const reqs = await res.json();
+  const reqs    = await res.json();
   const pending = reqs.filter(r => r.status === "pending");
 
   if (badge) {
-    if (pending.length > 0) {
-      badge.textContent  = pending.length;
-      badge.style.display = "inline-block";
-    } else {
-      badge.style.display = "none";
-    }
+    badge.textContent   = pending.length;
+    badge.style.display = pending.length > 0 ? "inline-block" : "none";
   }
 
   if (reqs.length === 0) {
@@ -792,8 +785,7 @@ async function loadPasswordResets() {
 
 function openResolveModal(id, username) {
   _pendingResolveId = id;
-  document.getElementById("resolveModalUser").textContent =
-    `Setting new password for: ${username}`;
+  document.getElementById("resolveModalUser").textContent = `Setting new password for: ${username}`;
   document.getElementById("resolvePwd").value = "";
   document.getElementById("resolveAlert").style.display = "none";
   const m = document.getElementById("resolveModal");

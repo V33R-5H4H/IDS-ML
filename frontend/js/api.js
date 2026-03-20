@@ -119,6 +119,7 @@ window.API = {
     const r = await this.request(`/admin/role-requests/${reqId}/reject`, {method:"PATCH"});
     return r ? {ok:r.ok, data:await r.json()} : {ok:false, data:{detail:"Error"}};
   },
+
   // ── Forgot password (public) ──────────────────────────────────────────────
   forgotPassword: async function(identifier, reason = "") {
     return this.request("/forgot-password", {
@@ -143,6 +144,26 @@ window.API = {
 
   dismissPasswordReset: async function(id) {
     return this.request(`/admin/password-resets/${id}/dismiss`, { method: "POST" });
+  },
+
+  // ── PCAP Analysis ─────────────────────────────────────────────────────────
+  analyzePcap: async function(file) {
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await fetch(`${API_BASE}/analyze-pcap`, {
+        method: "POST",
+        headers: { Authorization: Auth.headers().Authorization },
+        body: formData,
+      });
+      if (res.status === 401) { Auth.clear(); window.location.href = "index.html"; return null; }
+      return { ok: res.ok, data: await res.json() };
+    } catch(e) { return { ok: false, data: { detail: "Cannot connect to server" } }; }
+  },
+
+  getPcapHistory: async function(limit = 20) {
+    const r = await this.request(`/analyze-pcap/history?limit=${limit}`);
+    return r && r.ok ? await r.json() : [];
   },
 
 };

@@ -77,14 +77,125 @@
     </section>
 
     <!-- ══ PCAP ══ -->
-    <section class="content-section" id="section-pcap">
-      <div class="section-header"><h2><i class="bi bi-file-earmark-binary-fill me-2"></i>PCAP Analysis</h2></div>
-      <div class="coming-soon-card">
-        <i class="bi bi-file-earmark-binary-fill coming-icon"></i><h4>PCAP Upload</h4>
-        <p>Drag & drop PCAP analysis — Phase 1, Week 2.</p>
-        <span class="coming-badge">Phase 1</span>
+   <div class="content-section" id="section-pcap">
+
+  <!-- Header -->
+  <div class="section-header">
+    <h2><i class="bi bi-wifi" style="color:var(--primary)"></i> PCAP Analysis</h2>
+    <div class="section-sub">Upload a capture file to extract network features and detect anomalies</div>
+  </div>
+
+  <!-- Upload Card -->
+  <div class="table-card" id="pcap-upload-card" style="margin-bottom:20px;">
+    <div class="table-card-header">
+      <span><i class="bi bi-cloud-upload" style="color:var(--primary);margin-right:6px;"></i>Upload Capture File</span>
+      <span style="font-size:0.75rem;color:var(--text-muted);font-weight:400;">
+        .pcap &nbsp;·&nbsp; .pcapng &nbsp;·&nbsp; .cap &nbsp;·&nbsp; Max 100 MB
+      </span>
+    </div>
+    <div style="padding:20px;">
+
+      <!-- Drop zone -->
+      <div id="pcap-dropzone" class="pcap-dropzone"
+           ondragover="pcapDragOver(event)"
+           ondragleave="pcapDragLeave()"
+           ondrop="pcapDrop(event)"
+           onclick="document.getElementById('pcap-file-input').click()">
+        <i class="bi bi-folder2-open pcap-drop-icon"></i>
+        <p class="pcap-drop-text">Drag &amp; drop a capture file here</p>
+        <p class="pcap-drop-sub">or click to browse</p>
       </div>
-    </section>
+      <input type="file" id="pcap-file-input" accept=".pcap,.pcapng,.cap"
+             style="display:none;" onchange="pcapFileSelected(this.files[0])">
+
+      <!-- Selected file info -->
+      <div id="pcap-file-info" class="pcap-file-info" style="display:none;">
+        <i class="bi bi-file-earmark-binary" style="color:var(--primary);font-size:1.1rem;"></i>
+        <span id="pcap-file-name" style="color:var(--text-main);font-weight:600;"></span>
+        <span id="pcap-file-size" style="color:var(--text-muted);font-size:0.82rem;"></span>
+        <button onclick="pcapClearFile()"
+                style="margin-left:auto;background:none;border:none;color:var(--text-muted);
+                       cursor:pointer;font-size:1rem;" title="Clear">
+          <i class="bi bi-x-circle"></i>
+        </button>
+      </div>
+
+      <!-- Analyse button -->
+      <button id="pcap-analyse-btn" onclick="pcapAnalyse()"
+              class="btn-add-user" style="display:none;margin-top:14px;">
+        <i class="bi bi-search"></i> Analyse File
+      </button>
+
+      <!-- Progress bar -->
+      <div id="pcap-progress" style="display:none;margin-top:16px;">
+        <div class="pcap-progress-track">
+          <div id="pcap-progress-bar" class="pcap-progress-fill"></div>
+        </div>
+        <p style="color:var(--text-muted);font-size:0.82rem;margin-top:6px;">
+          <i class="bi bi-hourglass-split"></i> Extracting features from packets…
+        </p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Result Card -->
+  <div class="table-card" id="pcap-result-card" style="display:none;margin-bottom:20px;">
+    <div class="table-card-header">
+      <span>
+        <i class="bi bi-bar-chart-line" style="color:var(--success);margin-right:6px;"></i>
+        <span id="pcap-result-filename">Analysis Results</span>
+      </span>
+      <span id="pcap-result-badge" class="pcap-badge success">✅ Analysis Complete</span>
+    </div>
+    <div style="padding:20px;">
+
+      <!-- 12-feature stat grid -->
+      <div class="stats-grid" id="pcap-features-grid" style="margin-bottom:16px;"></div>
+
+      <!-- SHA256 fingerprint -->
+      <div style="background:var(--bg-dark);border:1px solid var(--border);
+                  border-radius:var(--radius);padding:10px 14px;">
+        <span style="color:var(--text-muted);font-size:0.75rem;font-weight:700;
+                     text-transform:uppercase;letter-spacing:0.5px;">SHA-256</span>
+        <div id="pcap-result-sha256"
+             style="color:var(--text-muted);font-size:0.75rem;margin-top:4px;
+                    word-break:break-all;font-family:monospace;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- History Table -->
+  <div class="table-card">
+    <div class="table-card-header">
+      <span><i class="bi bi-clock-history" style="color:var(--info);margin-right:6px;"></i>Analysis History</span>
+      <button class="btn-refresh" onclick="loadPcapHistory()">
+        <i class="bi bi-arrow-clockwise"></i> Refresh
+      </button>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="ids-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Filename</th>
+            <th style="text-align:right;">Packets</th>
+            <th style="text-align:right;">Size (KB)</th>
+            <th style="text-align:right;">Duration (s)</th>
+            <th>Protocols</th>
+            <th style="text-align:right;">B/s</th>
+            <th>Analysed At</th>
+          </tr>
+        </thead>
+        <tbody id="pcap-history-body">
+          <tr><td colspan="8" class="tbl-empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /section-pcap -->
+
 
     <!-- ══ LIVE ══ -->
     <section class="content-section" id="section-live">
@@ -389,10 +500,11 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="js/config.js?v=1773853548"></script>
-  <script src="js/auth.js?v=1773853548"></script>
-  <script src="js/api.js?v=1773853548"></script>
-  <script src="js/account.js?v=1773853548"></script>
-  <script src="js/dashboard.js?v=1773853548"></script>
+  <script src="js/config.js?v=1773904913"></script>
+  <script src="js/auth.js?v=1773904913"></script>
+  <script src="js/api.js?v=1773904913"></script>
+  <script src="js/account.js?v=1773904913"></script>
+  <script src="js/dashboard.js?v=1773904913"></script>
+  <script src="js/pcap.js"></script>
 </body>
 </html>

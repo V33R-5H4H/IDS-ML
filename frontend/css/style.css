@@ -771,3 +771,118 @@ body { font-family: "Inter", "Segoe UI", system-ui, sans-serif; }
   background: var(--border);
   margin: 0 0 14px;
 }
+
+/* ═══════════════════════════════════════════════════
+   PCAP ANALYSIS  — append to bottom of style.css
+   ═══════════════════════════════════════════════════ */
+
+/* Drop zone */
+.pcap-dropzone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 44px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition);
+  background: var(--bg-dark);
+}
+.pcap-dropzone:hover,
+.pcap-dropzone.dragover {
+  border-color: var(--primary);
+  background: var(--primary-glow);
+}
+.pcap-drop-icon {
+  font-size: 2.4rem;
+  color: var(--primary);
+  display: block;
+  margin-bottom: 10px;
+  filter: drop-shadow(0 0 10px var(--primary-glow));
+}
+.pcap-drop-text { font-size: 0.95rem; color: var(--text-main); margin: 0 0 4px; font-weight: 500; }
+.pcap-drop-sub  { font-size: 0.82rem; color: var(--text-muted); margin: 0; }
+
+/* Selected file row */
+.pcap-file-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: var(--bg-card2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.88rem;
+}
+
+/* Progress bar */
+.pcap-progress-track {
+  height: 5px;
+  background: var(--bg-card2);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.pcap-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--primary), var(--purple));
+  transition: width 0.3s ease;
+  border-radius: 10px;
+}
+
+/* Result badge */
+.pcap-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.pcap-badge.success {
+  background: rgba(34,197,94,0.15);
+  color: #86efac;
+  border: 1px solid rgba(34,197,94,0.3);
+}
+.pcap-badge.warning {
+  background: rgba(245,158,11,0.15);
+  color: #fcd34d;
+  border: 1px solid rgba(245,158,11,0.3);
+}
+
+/* Protocol pill */
+.proto-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  margin-right: 4px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(37,99,235,0.15);
+  color: #93c5fd;
+  border: 1px solid rgba(37,99,235,0.3);
+}
+
+/* Table helpers */
+.td-right { text-align: right; }
+.td-muted  { color: var(--text-muted); }
+.tbl-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 28px 16px !important;
+  font-size: 0.88rem;
+}
+
+/* Error banner */
+.pcap-error-banner {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 10px 14px;
+  background: rgba(239,68,68,0.12);
+  border: 1px solid rgba(239,68,68,0.35);
+  border-radius: var(--radius);
+  color: #fca5a5;
+  font-size: 0.88rem;
+}
+
