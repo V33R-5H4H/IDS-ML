@@ -193,4 +193,116 @@
       <i class="bi bi-bar-chart" style="font-size:2rem;opacity:.3;"></i>${msg}</div>`;
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // REPORT EXPORT
+  // ═══════════════════════════════════════════════════════════════
+  window.exportReport = async function (format) {
+    const data = await API.getReportsSummary();
+    if (!data) { showToast("Cannot fetch report data", "error"); return; }
+
+    if (format === "json") {
+      _downloadBlob(JSON.stringify(data, null, 2), "ids_report.json", "application/json");
+      showToast("JSON report downloaded", "success");
+    } else if (format === "csv") {
+      const rows = (data.recent || []);
+      const header = "Filename,Risk,Attack Type,Packets,Risk Score,Duration,Protocols,Analysed At\n";
+      const csv = header + rows.map(r =>
+        `"${r.filename}","${r.risk_label||''}","${r.attack_type||''}",${r.total_packets||0},${r.risk_score||0},${r.duration_seconds||0},"${r.top_protocols||''}","${r.created_at||''}"`
+      ).join("\n");
+      _downloadBlob(csv, "ids_report.csv", "text/csv");
+      showToast("CSV report downloaded", "success");
+    } else if (format === "html") {
+      const html = _buildHTMLReport(data);
+      const blob = new Blob([html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      showToast("Report opened — use Ctrl+S or Print to save", "success");
+    }
+  };
+
+  function _downloadBlob(content, filename, type) {
+    const blob = new Blob([content], { type });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function _buildHTMLReport(d) {
+    const now = new Date().toLocaleString("en-IN");
+    const C = { Critical:"#ef4444", High:"#f59e0b", Medium:"#3b82f6", Low:"#22c55e" };
+    const recentRows = (d.recent || []).map(r => `
+      <tr>
+        <td>${r.filename}</td>
+        <td style="color:${C[r.risk_label]||'#94a3b8'};font-weight:700">${r.risk_label||'—'}</td>
+        <td>${r.attack_type||'—'}</td>
+        <td style="text-align:right">${(r.total_packets||0).toLocaleString()}</td>
+        <td style="text-align:right">${r.risk_score ? Math.round(r.risk_score*100)+'%' : '—'}</td>
+        <td>${r.created_at ? r.created_at.substring(0,16).replace('T',' ') : '—'}</td>
+      </tr>`).join("");
+
+    const attacks = (d.top_attack_types || []).map(a =>
+      `<li><strong>${a.type}</strong> — ${a.count} occurrence${a.count!==1?'s':''}</li>`).join("");
+
+    const protocols = (d.top_protocols || []).map(p =>
+      `<li><strong>${p.protocol}</strong> — ${p.count}</li>`).join("");
+
+    return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<title>IDS-ML Security Report — ${now}</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f172a;color:#e2e8f0;padding:40px;line-height:1.6}
+  .container{max-width:900px;margin:0 auto;background:#1e293b;border-radius:12px;padding:36px;box-shadow:0 4px 30px rgba(0,0,0,.5)}
+  h1{font-size:1.6rem;color:#f8fafc;margin-bottom:6px;display:flex;align-items:center;gap:10px}
+  h1 span{font-size:.7rem;background:#3b82f6;color:#fff;padding:3px 10px;border-radius:12px;font-weight:600}
+  .meta{font-size:.8rem;color:#64748b;margin-bottom:28px}
+  h2{font-size:1.1rem;color:#94a3b8;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px solid #334155}
+  .stats{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:24px}
+  .stat{flex:1 1 140px;padding:16px;background:#0f172a;border-radius:8px;border-left:3px solid #3b82f6}
+  .stat-val{font-size:1.4rem;font-weight:800;color:#f8fafc}
+  .stat-lbl{font-size:.72rem;color:#64748b;text-transform:uppercase;letter-spacing:.4px;margin-top:3px}
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:.85rem}
+  th{text-align:left;padding:10px 12px;background:#0f172a;color:#94a3b8;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px}
+  td{padding:10px 12px;border-bottom:1px solid #1e293b}
+  tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+  ul{padding-left:18px;font-size:.88rem}
+  li{margin-bottom:4px}
+  .footer{margin-top:32px;padding-top:16px;border-top:1px solid #334155;font-size:.72rem;color:#475569;text-align:center}
+  @media print{body{background:#fff;color:#1e293b;padding:20px}
+    .container{background:#fff;box-shadow:none;border:1px solid #e2e8f0}
+    .stat{background:#f8fafc;border-left-color:#2563eb}
+    th{background:#f1f5f9;color:#475569}
+    td{border-bottom-color:#e2e8f0}
+    h2{color:#475569;border-bottom-color:#e2e8f0}}
+</style></head><body>
+<div class="container">
+  <h1>🛡 IDS-ML Security Report <span>v2.0</span></h1>
+  <div class="meta">Generated: ${now} &nbsp;|&nbsp; Model: ${d.model_name||'Random Forest IDS'} (${d.model_accuracy||'—'})</div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-val">${d.total_analyses||0}</div><div class="stat-lbl">Total Analyses</div></div>
+    <div class="stat" style="border-left-color:#ef4444"><div class="stat-val">${d.threat_count||0}</div><div class="stat-lbl">Threats Detected</div></div>
+    <div class="stat" style="border-left-color:#22c55e"><div class="stat-val">${d.normal_count||0}</div><div class="stat-lbl">Normal Traffic</div></div>
+    <div class="stat" style="border-left-color:#f59e0b"><div class="stat-val">${d.avg_risk_score ? Math.round(d.avg_risk_score*100)+'%' : '0%'}</div><div class="stat-lbl">Avg Risk Score</div></div>
+  </div>
+
+  <h2>Top Attack Types</h2>
+  ${attacks ? `<ul>${attacks}</ul>` : '<p style="color:#64748b;">No attack types detected.</p>'}
+
+  <h2>Protocol Distribution</h2>
+  ${protocols ? `<ul>${protocols}</ul>` : '<p style="color:#64748b;">No protocol data.</p>'}
+
+  <h2>Recent Analyses</h2>
+  <table>
+    <thead><tr><th>Filename</th><th>Risk</th><th>Attack Type</th><th style="text-align:right">Packets</th><th style="text-align:right">Score</th><th>Date</th></tr></thead>
+    <tbody>${recentRows || '<tr><td colspan="6" style="text-align:center;color:#64748b">No data</td></tr>'}</tbody>
+  </table>
+
+  <div class="footer">IDS-ML v2.0 — Intrusion Detection System &nbsp;|&nbsp; Report auto-generated</div>
+</div></body></html>`;
+  }
+
 })();

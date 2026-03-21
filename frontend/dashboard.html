@@ -251,9 +251,20 @@
         Read-only summary — last 7 days of detection activity
       </div>
     </div>
-    <button class="btn btn-ghost btn-sm" onclick="loadReports()">
-      <i class="bi bi-arrow-clockwise me-1"></i>Refresh
-    </button>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-sm" onclick="exportReport('csv')" title="Download as CSV">
+        <i class="bi bi-filetype-csv me-1"></i>CSV
+      </button>
+      <button class="btn btn-ghost btn-sm" onclick="exportReport('json')" title="Download as JSON">
+        <i class="bi bi-filetype-json me-1"></i>JSON
+      </button>
+      <button class="btn btn-primary btn-sm" onclick="exportReport('html')" title="Download formatted report">
+        <i class="bi bi-file-earmark-richtext me-1"></i>Save Report
+      </button>
+      <button class="btn btn-ghost btn-sm" onclick="loadReports()">
+        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+      </button>
+    </div>
   </div>
 
   <!-- Stat cards -->
