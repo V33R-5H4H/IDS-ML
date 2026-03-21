@@ -5,6 +5,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional
@@ -18,6 +19,9 @@ from backend.auth import (
 )
 from backend.pcap_analyzer import run_analysis, _orm_to_dict
 
+# ══════════════════════════════════════════════════════════════════════════════
+# DEFAULT ADMIN SEED
+# ══════════════════════════════════════════════════════════════════════════════
 DEFAULT_ADMIN = {
     "username": "admin",
     "email":    "admin@ids-ml.local",
@@ -30,53 +34,96 @@ def seed_default_admin(db):
     if existing:
         return
     admin = User(
-        username        = DEFAULT_ADMIN["username"],
-        email           = DEFAULT_ADMIN["email"],
-        hashed_password = hash_password(DEFAULT_ADMIN["password"]),
-        role            = DEFAULT_ADMIN["role"],
-        is_active       = True,
+        username         = DEFAULT_ADMIN["username"],
+        email            = DEFAULT_ADMIN["email"],
+        hashed_password  = hash_password(DEFAULT_ADMIN["password"]),
+        role             = DEFAULT_ADMIN["role"],
+        is_active        = True,
     )
     db.add(admin)
     db.commit()
-    print("\n" + "="*50)
-    print("  🔐 DEFAULT ADMIN ACCOUNT CREATED")
-    print("="*50)
-    print(f"  Username : {DEFAULT_ADMIN['username']}")
-    print(f"  Password : {DEFAULT_ADMIN['password']}")
-    print(f"  Role     : {DEFAULT_ADMIN['role']}")
-    print("  ⚠️  Change this password after first login!")
-    print("="*50 + "\n")
+    print("\n" + "=" * 50)
+    print(" 🔐 DEFAULT ADMIN ACCOUNT CREATED")
+    print("=" * 50)
+    print(f" Username : {DEFAULT_ADMIN['username']}")
+    print(f" Password : {DEFAULT_ADMIN['password']}")
+    print(f" Role     : {DEFAULT_ADMIN['role']}")
+    print(" ⚠️  Change this password after first login!")
+    print("=" * 50 + "\n")
 
+# ══════════════════════════════════════════════════════════════════════════════
+# DB MIGRATION — adds new columns to existing pcap_analysis table
+# ══════════════════════════════════════════════════════════════════════════════
+def _migrate_pcap_columns(engine):
+    """
+    Safely adds new columns to pcap_analysis without dropping existing data.
+    Silently skips any column that already exists (works on SQLite + PostgreSQL).
+    """
+    new_cols = [
+        ("user_id",     "INTEGER"),
+        ("risk_score",  "FLOAT"),
+        ("risk_label",  "VARCHAR(32)"),
+        ("model_used",  "VARCHAR(64)"),
+        ("attack_type", "VARCHAR(64)"),
+    ]
+    with engine.connect() as conn:
+        for col, col_type in new_cols:
+            try:
+                conn.execute(
+                    text(f"ALTER TABLE pcap_analysis ADD COLUMN {col} {col_type}")
+                )
+                conn.commit()
+                print(f"[DB] ✅ Migration: added column pcap_analysis.{col}")
+            except Exception:
+                pass  # Column already exists — safe to ignore
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LIFESPAN
+# ══════════════════════════════════════════════════════════════════════════════
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
         verify_connection()
         create_tables()
+
         # Ensure PCAP analysis table exists
         from backend.database import engine
         PcapAnalysis.__table__.create(bind=engine, checkfirst=True)
         print("[DB] ✅ Table ensured: pcap_analysis")
+
+        # Migrate new columns onto existing table (safe no-op if already present)
+        _migrate_pcap_columns(engine)
+
         db = next(get_db())
         try:
             seed_default_admin(db)
         finally:
             db.close()
+
         print("IDS-ML v2.0 API started! ✅")
     except Exception as e:
         print(f"[STARTUP] ❌ Error during startup: {e}")
         print("[STARTUP] API will continue but DB features may not work.")
     yield
 
+# ══════════════════════════════════════════════════════════════════════════════
+# APP
+# ══════════════════════════════════════════════════════════════════════════════
 app = FastAPI(title="IDS-ML v2.0 API", version="2.0.0", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"],
-    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SCHEMAS
 # ══════════════════════════════════════════════════════════════════════════════
 class PublicRegister(BaseModel):
     username: str
-    email: str
+    email:    str
     password: str
 
 class UpdateProfile(BaseModel):
@@ -105,12 +152,12 @@ class ResetPassword(BaseModel):
 
 class ForgotPasswordRequest(BaseModel):
     identifier: str
-    reason: Optional[str] = ""
+    reason:     Optional[str] = ""
 
 class AdminResolveReset(BaseModel):
     new_password: str
 
-# ── PCAP Schemas ──────────────────────────────────────────────────────────────
+# ── PCAP Schemas ───────────────────────────────────────────────────────────────
 class PcapResultOut(BaseModel):
     id:               int
     filename:         str
@@ -137,50 +184,66 @@ class PcapResultOut(BaseModel):
     created_at:       Optional[str]   = None
 
     class Config:
-        from_attributes = True # Pydantic v2
+        from_attributes    = True   # Pydantic v2
         protected_namespaces = ()
-        # orm_mode = True        # uncomment for Pydantic v1
+        # orm_mode = True           # uncomment for Pydantic v1
 
 class PcapAnalysisResponse(BaseModel):
     duplicate: bool
     message:   str
     result:    PcapResultOut
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# ── Helper ─────────────────────────────────────────────────────────────────────
 def user_dict(u):
-    return {"id":u.id,"username":u.username,"email":u.email,
-            "display_name":u.display_name,"role":u.role,
-            "is_active":u.is_active,"created_at":str(u.created_at),
-            "last_login":str(u.last_login) if u.last_login else None}
+    return {
+        "id":           u.id,
+        "username":     u.username,
+        "email":        u.email,
+        "display_name": u.display_name,
+        "role":         u.role,
+        "is_active":    u.is_active,
+        "created_at":   str(u.created_at),
+        "last_login":   str(u.last_login) if u.last_login else None,
+    }
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ROOT / HEALTH
 # ══════════════════════════════════════════════════════════════════════════════
 @app.get("/", include_in_schema=False)
-async def root(): return RedirectResponse(url="/docs")
+async def root():
+    return RedirectResponse(url="/docs")
 
 @app.get("/health", tags=["System"])
 async def health():
-    return {"status":"ok","version":"2.0.0","message":"IDS-ML v2.0 running!"}
+    return {"status": "ok", "version": "2.0.0", "message": "IDS-ML v2.0 running!"}
 
 # ══════════════════════════════════════════════════════════════════════════════
 # AUTH
 # ══════════════════════════════════════════════════════════════════════════════
 @app.post("/login", response_model=Token, tags=["Auth"])
-async def login(form_data: OAuth2PasswordRequestForm = Depends(),
-                db: Session = Depends(get_db)):
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
     identifier = form_data.username.strip()
     user = (
         db.query(User).filter(User.username == identifier).first() or
         db.query(User).filter(User.email    == identifier).first()
     )
     if not user or not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Incorrect username or password",
-                            headers={"WWW-Authenticate":"Bearer"})
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     if not user.is_active:
         raise HTTPException(status_code=403, detail="ACCOUNT_DEACTIVATED")
-    user.last_login = datetime.utcnow(); db.commit()
-    return {"access_token": create_access_token({"sub": user.username}), "token_type": "bearer"}
+    user.last_login = datetime.utcnow()
+    db.commit()
+    return {
+        "access_token": create_access_token({"sub": user.username}),
+        "token_type":   "bearer",
+    }
 
 @app.post("/register", tags=["Auth"], status_code=201)
 async def register(data: PublicRegister, db: Session = Depends(get_db)):
@@ -190,11 +253,19 @@ async def register(data: PublicRegister, db: Session = Depends(get_db)):
         raise HTTPException(400, "Email already registered")
     if len(data.password) < 6:
         raise HTTPException(400, "Password must be at least 6 characters")
-    u = User(username=data.username, email=data.email,
-             hashed_password=hash_password(data.password), role="viewer", is_active=True)
+    u = User(
+        username        = data.username,
+        email           = data.email,
+        hashed_password = hash_password(data.password),
+        role            = "viewer",
+        is_active       = True,
+    )
     db.add(u); db.commit(); db.refresh(u)
-    return {"message":"Account created! You have been assigned the viewer role.",
-            "username":u.username, "role":u.role}
+    return {
+        "message":  "Account created! You have been assigned the viewer role.",
+        "username": u.username,
+        "role":     u.role,
+    }
 
 @app.get("/me", response_model=UserOut, tags=["Auth"])
 async def get_me(me: User = Depends(get_current_user)):
@@ -204,8 +275,11 @@ async def get_me(me: User = Depends(get_current_user)):
 # SELF — every logged-in user
 # ══════════════════════════════════════════════════════════════════════════════
 @app.patch("/me/profile", tags=["Self"])
-async def update_profile(data: UpdateProfile, db: Session = Depends(get_db),
-                         me: User = Depends(get_current_user)):
+async def update_profile(
+    data: UpdateProfile,
+    db:   Session = Depends(get_db),
+    me:   User    = Depends(get_current_user),
+):
     if data.email and data.email != me.email:
         if db.query(User).filter(User.email == data.email, User.id != me.id).first():
             raise HTTPException(400, "Email already in use by another account")
@@ -216,53 +290,77 @@ async def update_profile(data: UpdateProfile, db: Session = Depends(get_db),
     return {"message": "Profile updated", "user": user_dict(me)}
 
 @app.patch("/me/password", tags=["Self"])
-async def change_password(data: ChangePassword, db: Session = Depends(get_db),
-                          me: User = Depends(get_current_user)):
+async def change_password(
+    data: ChangePassword,
+    db:   Session = Depends(get_db),
+    me:   User    = Depends(get_current_user),
+):
     if not verify_password(data.current_password, me.hashed_password):
         raise HTTPException(400, "Current password is incorrect")
     if len(data.new_password) < 6:
         raise HTTPException(400, "New password must be at least 6 characters")
     if data.current_password == data.new_password:
         raise HTTPException(400, "New password must differ from current password")
-    me.hashed_password = hash_password(data.new_password); db.commit()
+    me.hashed_password = hash_password(data.new_password)
+    db.commit()
     return {"message": "Password changed successfully"}
 
 @app.post("/me/role-request", tags=["Self"], status_code=201)
-async def request_role(data: RoleRequestCreate, db: Session = Depends(get_db),
-                       me: User = Depends(get_current_user)):
-    valid = {"admin","analyst","viewer"}
+async def request_role(
+    data: RoleRequestCreate,
+    db:   Session = Depends(get_db),
+    me:   User    = Depends(get_current_user),
+):
+    valid = {"admin", "analyst", "viewer"}
     if data.requested_role not in valid:
         raise HTTPException(400, "Invalid role")
     if data.requested_role == me.role:
         raise HTTPException(400, f"You already have the '{me.role}' role")
     existing = db.query(RoleRequest).filter(
         RoleRequest.user_id == me.id,
-        RoleRequest.status  == "pending"
+        RoleRequest.status  == "pending",
     ).first()
     if existing:
         raise HTTPException(400, "You already have a pending access request. Wait for admin review.")
-    req = RoleRequest(user_id=me.id, username=me.username,
-                      current_role=me.role, requested_role=data.requested_role,
-                      reason=data.reason or "")
+    req = RoleRequest(
+        user_id        = me.id,
+        username       = me.username,
+        current_role   = me.role,
+        requested_role = data.requested_role,
+        reason         = data.reason or "",
+    )
     db.add(req); db.commit(); db.refresh(req)
-    return {"message": f"Access request submitted for '{data.requested_role}' role. Pending admin review.",
-            "request_id": req.id}
+    return {
+        "message":    f"Access request submitted for '{data.requested_role}' role. Pending admin review.",
+        "request_id": req.id,
+    }
 
 @app.get("/me/role-request", tags=["Self"])
-async def my_role_request(db: Session = Depends(get_db),
-                          me: User = Depends(get_current_user)):
-    req = db.query(RoleRequest).filter(
-        RoleRequest.user_id == me.id
-    ).order_by(RoleRequest.created_at.desc()).first()
-    if not req: return {"request": None}
-    return {"request": {"id":req.id,"requested_role":req.requested_role,
-            "current_role":req.current_role,"reason":req.reason,
-            "status":req.status,"created_at":str(req.created_at),
-            "reviewed_by":req.reviewed_by,
-            "reviewed_at":str(req.reviewed_at) if req.reviewed_at else None}}
+async def my_role_request(
+    db: Session = Depends(get_db),
+    me: User    = Depends(get_current_user),
+):
+    req = (
+        db.query(RoleRequest)
+        .filter(RoleRequest.user_id == me.id)
+        .order_by(RoleRequest.created_at.desc())
+        .first()
+    )
+    if not req:
+        return {"request": None}
+    return {"request": {
+        "id":             req.id,
+        "requested_role": req.requested_role,
+        "current_role":   req.current_role,
+        "reason":         req.reason,
+        "status":         req.status,
+        "created_at":     str(req.created_at),
+        "reviewed_by":    req.reviewed_by,
+        "reviewed_at":    str(req.reviewed_at) if req.reviewed_at else None,
+    }}
 
 # ══════════════════════════════════════════════════════════════════════════════
-# FORGOT PASSWORD  (public)
+# FORGOT PASSWORD (public)
 # ══════════════════════════════════════════════════════════════════════════════
 @app.post("/forgot-password", tags=["Auth"], status_code=201)
 async def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get_db)):
@@ -275,7 +373,7 @@ async def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get
         return {"message": "If that account exists, a reset request has been submitted."}
     existing = db.query(PasswordResetRequest).filter(
         PasswordResetRequest.user_id == user.id,
-        PasswordResetRequest.status  == "pending"
+        PasswordResetRequest.status  == "pending",
     ).first()
     if existing:
         return {"message": "A reset request is already pending. Please wait for admin to process it."}
@@ -283,7 +381,7 @@ async def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get
         user_id  = user.id,
         username = user.username,
         email    = user.email,
-        reason   = data.reason or ""
+        reason   = data.reason or "",
     )
     db.add(req); db.commit(); db.refresh(req)
     return {"message": "Reset request submitted. An administrator will set a new temporary password for you."}
@@ -292,22 +390,34 @@ async def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get
 # ADMIN — PASSWORD RESET MANAGEMENT
 # ══════════════════════════════════════════════════════════════════════════════
 @app.get("/admin/password-resets", tags=["Admin"])
-async def list_reset_requests(db: Session = Depends(get_db),
-                               _=Depends(require_roles("admin"))):
+async def list_reset_requests(
+    db: Session = Depends(get_db),
+    _  = Depends(require_roles("admin")),
+):
     reqs = db.query(PasswordResetRequest).order_by(
-        PasswordResetRequest.created_at.desc()).all()
-    return [{"id":r.id,"user_id":r.user_id,"username":r.username,
-             "email":r.email,"reason":r.reason,"status":r.status,
-             "created_at":str(r.created_at),
-             "resolved_at":str(r.resolved_at) if r.resolved_at else None,
-             "resolved_by":r.resolved_by} for r in reqs]
+        PasswordResetRequest.created_at.desc()
+    ).all()
+    return [{
+        "id":          r.id,
+        "user_id":     r.user_id,
+        "username":    r.username,
+        "email":       r.email,
+        "reason":      r.reason,
+        "status":      r.status,
+        "created_at":  str(r.created_at),
+        "resolved_at": str(r.resolved_at) if r.resolved_at else None,
+        "resolved_by": r.resolved_by,
+    } for r in reqs]
 
 @app.post("/admin/password-resets/{req_id}/resolve", tags=["Admin"])
-async def resolve_reset(req_id: int, data: AdminResolveReset,
-                        db: Session = Depends(get_db),
-                        me: User = Depends(require_roles("admin"))):
+async def resolve_reset(
+    req_id: int,
+    data:   AdminResolveReset,
+    db:     Session = Depends(get_db),
+    me:     User    = Depends(require_roles("admin")),
+):
     req = db.query(PasswordResetRequest).filter(PasswordResetRequest.id == req_id).first()
-    if not req: raise HTTPException(404, "Reset request not found")
+    if not req:  raise HTTPException(404, "Reset request not found")
     if req.status != "pending": raise HTTPException(400, f"Request already {req.status}")
     user = db.query(User).filter(User.id == req.user_id).first()
     if not user: raise HTTPException(404, "User not found")
@@ -320,8 +430,11 @@ async def resolve_reset(req_id: int, data: AdminResolveReset,
     return {"message": f"Password reset for '{user.username}'. New temp password set."}
 
 @app.post("/admin/password-resets/{req_id}/dismiss", tags=["Admin"])
-async def dismiss_reset(req_id: int, db: Session = Depends(get_db),
-                        me: User = Depends(require_roles("admin"))):
+async def dismiss_reset(
+    req_id: int,
+    db:     Session = Depends(get_db),
+    me:     User    = Depends(require_roles("admin")),
+):
     req = db.query(PasswordResetRequest).filter(PasswordResetRequest.id == req_id).first()
     if not req: raise HTTPException(404, "Reset request not found")
     req.status      = "dismissed"
@@ -333,102 +446,151 @@ async def dismiss_reset(req_id: int, db: Session = Depends(get_db),
 # ADMIN — USER MANAGEMENT
 # ══════════════════════════════════════════════════════════════════════════════
 @app.get("/users", tags=["Admin"])
-async def list_users(db: Session = Depends(get_db), _=Depends(require_roles("admin"))):
+async def list_users(
+    db: Session = Depends(get_db),
+    _  = Depends(require_roles("admin")),
+):
     return [user_dict(u) for u in db.query(User).order_by(User.id).all()]
 
 @app.post("/admin/users", tags=["Admin"], status_code=201)
-async def admin_create(data: AdminCreateUser, db: Session = Depends(get_db),
-                        _=Depends(require_roles("admin"))):
-    if data.role not in ("admin","analyst","viewer"):
+async def admin_create(
+    data: AdminCreateUser,
+    db:   Session = Depends(get_db),
+    _     = Depends(require_roles("admin")),
+):
+    if data.role not in ("admin", "analyst", "viewer"):
         raise HTTPException(400, "Invalid role")
     if db.query(User).filter(User.username == data.username).first():
         raise HTTPException(400, "Username already taken")
     if db.query(User).filter(User.email == data.email).first():
         raise HTTPException(400, "Email already registered")
-    u = User(username=data.username, email=data.email,
-             hashed_password=hash_password(data.password), role=data.role, is_active=True)
+    u = User(
+        username        = data.username,
+        email           = data.email,
+        hashed_password = hash_password(data.password),
+        role            = data.role,
+        is_active       = True,
+    )
     db.add(u); db.commit(); db.refresh(u)
     return {"message": f"User '{u.username}' created as {u.role}", "id": u.id}
 
 @app.patch("/admin/users/{uid}/role", tags=["Admin"])
-async def admin_change_role(uid: int, data: RoleUpdate, db: Session = Depends(get_db),
-                             me: User = Depends(require_roles("admin"))):
-    if data.role not in ("admin","analyst","viewer"):
+async def admin_change_role(
+    uid:  int,
+    data: RoleUpdate,
+    db:   Session = Depends(get_db),
+    me:   User    = Depends(require_roles("admin")),
+):
+    if data.role not in ("admin", "analyst", "viewer"):
         raise HTTPException(400, "Invalid role")
     u = db.query(User).filter(User.id == uid).first()
-    if not u: raise HTTPException(404, "User not found")
+    if not u:      raise HTTPException(404, "User not found")
     if u.id == me.id: raise HTTPException(400, "Cannot change your own role")
     old = u.role; u.role = data.role; db.commit()
     return {"message": f"'{u.username}' role: {old} → {data.role}"}
 
 @app.patch("/admin/users/{uid}/activate", tags=["Admin"])
-async def admin_activate(uid: int, db: Session = Depends(get_db),
-                          me: User = Depends(require_roles("admin"))):
+async def admin_activate(
+    uid: int,
+    db:  Session = Depends(get_db),
+    me:  User    = Depends(require_roles("admin")),
+):
     u = db.query(User).filter(User.id == uid).first()
-    if not u: raise HTTPException(404, "User not found")
+    if not u:         raise HTTPException(404, "User not found")
     if u.id == me.id: raise HTTPException(400, "Cannot modify own account")
     u.is_active = True; db.commit()
     return {"message": f"'{u.username}' activated"}
 
 @app.patch("/admin/users/{uid}/deactivate", tags=["Admin"])
-async def admin_deactivate(uid: int, db: Session = Depends(get_db),
-                            me: User = Depends(require_roles("admin"))):
+async def admin_deactivate(
+    uid: int,
+    db:  Session = Depends(get_db),
+    me:  User    = Depends(require_roles("admin")),
+):
     u = db.query(User).filter(User.id == uid).first()
-    if not u: raise HTTPException(404, "User not found")
+    if not u:         raise HTTPException(404, "User not found")
     if u.id == me.id: raise HTTPException(400, "Cannot modify own account")
     u.is_active = False; db.commit()
     return {"message": f"'{u.username}' deactivated"}
 
 @app.delete("/admin/users/{uid}", tags=["Admin"])
-async def admin_delete(uid: int, db: Session = Depends(get_db),
-                        me: User = Depends(require_roles("admin"))):
+async def admin_delete(
+    uid: int,
+    db:  Session = Depends(get_db),
+    me:  User    = Depends(require_roles("admin")),
+):
     u = db.query(User).filter(User.id == uid).first()
-    if not u: raise HTTPException(404, "User not found")
+    if not u:         raise HTTPException(404, "User not found")
     if u.id == me.id: raise HTTPException(400, "Cannot delete own account")
     db.delete(u); db.commit()
     return {"message": f"'{u.username}' deleted"}
 
 @app.patch("/admin/users/{uid}/reset-password", tags=["Admin"])
-async def admin_reset_pwd(uid: int, data: ResetPassword, db: Session = Depends(get_db),
-                           _=Depends(require_roles("admin"))):
+async def admin_reset_pwd(
+    uid:  int,
+    data: ResetPassword,
+    db:   Session = Depends(get_db),
+    _     = Depends(require_roles("admin")),
+):
     if len(data.new_password) < 6: raise HTTPException(400, "Min 6 characters")
     u = db.query(User).filter(User.id == uid).first()
     if not u: raise HTTPException(404, "User not found")
     u.hashed_password = hash_password(data.new_password); db.commit()
     return {"message": f"Password reset for '{u.username}'"}
 
-# ── Admin: Role Requests ──────────────────────────────────────────────────────
+# ── Admin: Role Requests ───────────────────────────────────────────────────────
 @app.get("/admin/role-requests", tags=["Admin"])
-async def get_role_requests(status: Optional[str] = None, db: Session = Depends(get_db),
-                             _=Depends(require_roles("admin"))):
+async def get_role_requests(
+    status: Optional[str] = None,
+    db:     Session        = Depends(get_db),
+    _       = Depends(require_roles("admin")),
+):
     q = db.query(RoleRequest)
-    if status: q = q.filter(RoleRequest.status == status)
+    if status:
+        q = q.filter(RoleRequest.status == status)
     reqs = q.order_by(RoleRequest.created_at.desc()).all()
-    return [{"id":r.id,"user_id":r.user_id,"username":r.username,
-             "current_role":r.current_role,"requested_role":r.requested_role,
-             "reason":r.reason,"status":r.status,"created_at":str(r.created_at),
-             "reviewed_by":r.reviewed_by,
-             "reviewed_at":str(r.reviewed_at) if r.reviewed_at else None} for r in reqs]
+    return [{
+        "id":             r.id,
+        "user_id":        r.user_id,
+        "username":       r.username,
+        "current_role":   r.current_role,
+        "requested_role": r.requested_role,
+        "reason":         r.reason,
+        "status":         r.status,
+        "created_at":     str(r.created_at),
+        "reviewed_by":    r.reviewed_by,
+        "reviewed_at":    str(r.reviewed_at) if r.reviewed_at else None,
+    } for r in reqs]
 
 @app.patch("/admin/role-requests/{req_id}/approve", tags=["Admin"])
-async def approve_request(req_id: int, db: Session = Depends(get_db),
-                          me: User = Depends(require_roles("admin"))):
+async def approve_request(
+    req_id: int,
+    db:     Session = Depends(get_db),
+    me:     User    = Depends(require_roles("admin")),
+):
     req = db.query(RoleRequest).filter(RoleRequest.id == req_id).first()
     if not req: raise HTTPException(404, "Request not found")
     if req.status != "pending": raise HTTPException(400, f"Request already {req.status}")
     user = db.query(User).filter(User.id == req.user_id).first()
     if user: user.role = req.requested_role
-    req.status = "approved"; req.reviewed_by = me.username; req.reviewed_at = datetime.utcnow()
+    req.status      = "approved"
+    req.reviewed_by = me.username
+    req.reviewed_at = datetime.utcnow()
     db.commit()
     return {"message": f"Approved: '{req.username}' is now {req.requested_role}"}
 
 @app.patch("/admin/role-requests/{req_id}/reject", tags=["Admin"])
-async def reject_request(req_id: int, db: Session = Depends(get_db),
-                         me: User = Depends(require_roles("admin"))):
+async def reject_request(
+    req_id: int,
+    db:     Session = Depends(get_db),
+    me:     User    = Depends(require_roles("admin")),
+):
     req = db.query(RoleRequest).filter(RoleRequest.id == req_id).first()
     if not req: raise HTTPException(404, "Request not found")
     if req.status != "pending": raise HTTPException(400, f"Request already {req.status}")
-    req.status = "rejected"; req.reviewed_by = me.username; req.reviewed_at = datetime.utcnow()
+    req.status      = "rejected"
+    req.reviewed_by = me.username
+    req.reviewed_at = datetime.utcnow()
     db.commit()
     return {"message": f"Rejected access request from '{req.username}'"}
 
@@ -442,9 +604,9 @@ async def reject_request(req_id: int, db: Session = Depends(get_db),
     summary="Upload and analyse a PCAP/PCAPNG/CAP file",
 )
 async def analyze_pcap(
-    file: UploadFile = File(..., description="Network capture file (.pcap/.pcapng/.cap)"),
-    db: Session = Depends(get_db),
-    _user: User = Depends(get_current_user),
+    file:  UploadFile = File(..., description="Network capture file (.pcap/.pcapng/.cap)"),
+    db:    Session    = Depends(get_db),
+    _user: User       = Depends(get_current_user),
 ):
     try:
         return await run_analysis(file, db, PcapAnalysis)
@@ -459,9 +621,9 @@ async def analyze_pcap(
     summary="List previous PCAP analyses (newest first)",
 )
 async def pcap_history(
-    limit: int = 20,
-    db: Session = Depends(get_db),
-    _user: User = Depends(get_current_user),
+    limit: int     = 20,
+    db:    Session = Depends(get_db),
+    _user: User    = Depends(get_current_user),
 ):
     rows = (
         db.query(PcapAnalysis)

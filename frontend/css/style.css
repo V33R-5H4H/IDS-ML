@@ -935,3 +935,102 @@ textarea.form-input{min-height:80px}
   .data-table th,.data-table td{padding:8px 10px;font-size:.78rem}
   .auth-card{padding:20px 16px}
 }
+
+/* ── Table utilities (used by PCAP history) ─────────────────────────────── */
+.tbl-muted { color:var(--text-muted); font-size:.8rem; }
+.tbl-right { text-align:right; }
+
+/* ── Protocol pill ───────────────────────────────────────────────────────── */
+.proto-pill {
+  display:inline-block;
+  background:rgba(59,130,246,.1); color:#93c5fd;
+  border:1px solid rgba(59,130,246,.2);
+  border-radius:4px; font-size:.68rem; font-weight:700;
+  padding:1px 7px; margin:1px 2px;
+  text-transform:uppercase; letter-spacing:.3px;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   PREDICTIONS SECTION
+════════════════════════════════════════════════════════════════ */
+.pred-stats-bar {
+  display:flex; align-items:center; gap:20px;
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:var(--radius); padding:14px 22px;
+  margin-bottom:16px; flex-wrap:wrap;
+}
+.pred-stat { display:flex; flex-direction:column; align-items:center; gap:2px; min-width:56px; }
+.pred-stat-val { font-size:1.35rem; font-weight:700; color:var(--text-white); line-height:1.1; }
+.pred-stat-lbl { font-size:.66rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; white-space:nowrap; }
+.pred-stat-div { width:1px; height:34px; background:var(--border); margin:0 6px; }
+
+.pred-filters { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
+.pred-filter-btn {
+  display:inline-flex; align-items:center;
+  background:transparent; border:1px solid var(--border-light);
+  color:var(--text-sub); padding:6px 16px; border-radius:20px;
+  font-size:.78rem; font-weight:600; cursor:pointer; transition:all .2s;
+}
+.pred-filter-btn:hover  { background:var(--bg-hover); color:var(--text-main); }
+.pred-filter-btn.active { background:var(--accent-blue); color:#fff; border-color:var(--accent-blue); }
+
+.pred-card {
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:var(--radius); padding:16px 18px; margin-bottom:10px;
+  transition:border-color .2s, transform .15s;
+}
+.pred-card:hover { border-color:var(--border-light); transform:translateX(2px); }
+
+.pred-card-top {
+  display:flex; align-items:flex-start; justify-content:space-between;
+  gap:12px; margin-bottom:12px; flex-wrap:wrap;
+}
+.pred-card-file  { display:flex; align-items:center; flex:1; min-width:0; }
+.pred-card-fname {
+  font-size:.88rem; font-weight:600; color:var(--text-main);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.pred-card-badges { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.pred-risk-badge {
+  font-size:.72rem; font-weight:700; padding:3px 11px;
+  border-radius:20px; display:inline-flex; align-items:center; white-space:nowrap;
+}
+.pred-time { font-size:.72rem; color:var(--text-muted); white-space:nowrap; }
+
+.pred-risk-row {
+  display:flex; align-items:center; gap:10px; margin-bottom:12px;
+}
+.pred-risk-lbl { font-size:.72rem; font-weight:700; min-width:68px; text-transform:uppercase; letter-spacing:.4px; }
+.pred-bar-track { flex:1; height:5px; background:var(--border); border-radius:4px; overflow:hidden; }
+.pred-bar-fill  { height:100%; border-radius:4px; transition:width .6s ease; }
+.pred-risk-pct  { font-size:.78rem; font-weight:700; min-width:38px; text-align:right; }
+
+.pred-meta-grid {
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr));
+  gap:8px; margin-bottom:12px;
+}
+.pred-meta-item { display:flex; flex-direction:column; gap:2px; }
+.pred-meta-key  { font-size:.7rem; color:var(--text-muted); display:flex; align-items:center; }
+.pred-meta-val  { font-size:.82rem; color:var(--text-main); font-weight:500; }
+
+.pred-proto-row {
+  display:flex; align-items:center; justify-content:space-between;
+  gap:12px; flex-wrap:wrap; padding-top:10px; border-top:1px solid var(--border);
+}
+.pred-proto-bars  { display:flex; flex-direction:column; gap:3px; min-width:140px; }
+.pred-proto-bar   { height:4px; background:var(--border); border-radius:3px; overflow:hidden; }
+.pred-proto-labels { display:flex; gap:10px; font-size:.65rem; margin-top:2px; }
+
+.pred-empty {
+  text-align:center; padding:54px 20px;
+  color:var(--text-muted); font-size:.88rem;
+}
+.pred-empty-icon {
+  font-size:2.5rem; opacity:.3; display:block; margin-bottom:12px;
+}
+
+@media(max-width:600px) {
+  .pred-stats-bar  { gap:12px; padding:12px 14px; }
+  .pred-meta-grid  { grid-template-columns:1fr 1fr; }
+  .pred-proto-bars { display:none; }
+}

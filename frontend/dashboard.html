@@ -77,19 +77,65 @@
   </section>
 
   <!-- PREDICTIONS -->
-  <section id="section-predictions" class="content-section">
+  <div id="section-predictions" class="content-section">
     <div class="section-header">
-      <h1 class="section-title"><i class="bi bi-activity"></i> ML Predictions</h1>
-    </div>
-    <div class="card">
-      <div class="card-header"><h3>Predictions Feed</h3></div>
-      <div class="card-body coming-soon">
-        <i class="bi bi-hourglass-split coming-soon-icon"></i>
-        <p>Live + PCAP predictions — Phase 1, Week 2.</p>
-        <span class="phase-badge">Phase 1–2</span>
+      <div>
+        <div class="section-title">
+          <i class="bi bi-activity"></i>ML Predictions
+        </div>
+        <div class="section-sub">
+          Risk assessments from all PCAP analyses — auto-refreshes every 30 s
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost btn-sm" onclick="loadPredictions()">
+          <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="navigateTo('pcap')">
+          <i class="bi bi-upload me-1"></i>Upload PCAP
+        </button>
       </div>
     </div>
-  </section>
+
+    <!-- Stats bar -->
+    <div id="pred-stats-bar" class="pred-stats-bar">
+      <div class="pred-stat">
+        <div class="skeleton-row" style="width:36px;height:22px;border-radius:4px;"></div>
+        <span class="pred-stat-lbl">Loading…</span>
+      </div>
+    </div>
+
+    <!-- Filter pills -->
+    <div class="pred-filters">
+      <button class="pred-filter-btn active" onclick="setPredFilter('all',this)">
+        <i class="bi bi-grid-fill me-1"></i>All
+      </button>
+      <button class="pred-filter-btn" onclick="setPredFilter('Critical',this)">
+        <i class="bi bi-exclamation-octagon-fill me-1"></i>Critical
+      </button>
+      <button class="pred-filter-btn" onclick="setPredFilter('High',this)">
+        <i class="bi bi-exclamation-triangle-fill me-1"></i>High
+      </button>
+      <button class="pred-filter-btn" onclick="setPredFilter('Medium',this)">
+        <i class="bi bi-shield-exclamation me-1"></i>Medium
+      </button>
+      <button class="pred-filter-btn" onclick="setPredFilter('Low',this)">
+        <i class="bi bi-shield-check me-1"></i>Low / Normal
+      </button>
+    </div>
+
+    <!-- Feed cards -->
+    <div id="pred-feed"></div>
+
+    <!-- Load more -->
+    <div style="text-align:center;margin-top:14px;">
+      <button id="pred-load-more" class="btn btn-ghost"
+              style="display:none;" onclick="predLoadMore()">
+        <i class="bi bi-chevron-down me-1"></i>Load More
+      </button>
+    </div>
+  </div>
+
 
   <!-- ALERTS -->
   <section id="section-alerts" class="content-section">
@@ -402,5 +448,6 @@
 <script src="js/pcap.js"></script>
 <script src="js/account.js"></script>
 <script src="js/dashboard.js"></script>
+<script src="js/predictions.js"></script>
 </body>
 </html>

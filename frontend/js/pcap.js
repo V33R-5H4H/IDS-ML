@@ -258,86 +258,62 @@
     card.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // HISTORY TABLE
-  // ══════════════════════════════════════════════════════════════════════════
+  // ── History Table ─────────────────────────────────────────────────────────
   window.loadPcapHistory = async function () {
     const tbody = document.getElementById("pcap-history-body");
-    if (!tbody) return;
+  if (!tbody) return;
 
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="10" class="tbl-empty">
-          <div class="skeleton-row"></div>
-          <div class="skeleton-row" style="width:65%;margin-top:6px;"></div>
-        </td>
-      </tr>`;
+  // Skeleton
+  tbody.innerHTML = `<tr><td colspan="10" class="tbl-empty">
+    <div class="skeleton-row"></div>
+    <div class="skeleton-row" style="width:65%"></div>
+  </td></tr>`;
 
-    const rows = await API.getPcapHistory(20);
+  const rows = await API.getPcapHistory(20);
 
-    if (!rows || rows.length === 0) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="10" class="tbl-empty">
-            No analyses yet — upload your first PCAP file above.
-          </td>
-        </tr>`;
-      return;
-    }
+  if (!rows || rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="10" class="tbl-empty">
+      No analyses yet — upload your first PCAP above.
+    </td></tr>`;
+    return;
+  }
 
-    tbody.innerHTML = rows.map((r, i) => {
-      const riskStyle = HISTORY_RISK_STYLE[r.risk_label] || "color:var(--text-muted);";
-      const pct       = r.risk_score !== undefined && r.risk_score !== null
-        ? Math.round(r.risk_score * 100) + "%"
-        : "—";
-
-      // Attack type badge
-      let attackBadge = `<span style="color:var(--text-muted);">—</span>`;
-      if (r.attack_type && r.attack_type !== "unknown") {
-        if (r.attack_type === "normal") {
-          attackBadge = `
-            <span style="font-size:0.7rem;padding:2px 8px;border-radius:10px;font-weight:600;
-                         background:rgba(34,197,94,0.15);color:#86efac;
-                         border:1px solid rgba(34,197,94,0.25);">
-              normal
-            </span>`;
-        } else {
-          attackBadge = `
-            <span style="font-size:0.7rem;padding:2px 8px;border-radius:10px;font-weight:600;
-                         background:rgba(239,68,68,0.15);color:#fca5a5;
-                         border:1px solid rgba(239,68,68,0.25);">
-              ${r.attack_type}
-            </span>`;
-        }
-      }
-
-      // Protocol pills
-      const protoPills = (r.top_protocols || "")
-        .split(",")
-        .filter(Boolean)
-        .map(p => `<span class="proto-pill">${p.trim()}</span>`)
-        .join("");
-
-      return `
-        <tr>
-          <td class="td-muted">${i + 1}</td>
-          <td><span style="font-weight:600;color:var(--text-main);">${r.filename}</span></td>
-          <td class="td-right">${(r.total_packets || 0).toLocaleString()}</td>
-          <td class="td-right">${((r.total_bytes || 0) / 1024).toFixed(1)}</td>
-          <td class="td-right">${(r.duration_seconds || 0).toFixed(2)}</td>
-          <td>${protoPills || "—"}</td>
-          <td class="td-right">${(r.bytes_per_second || 0).toFixed(1)}</td>
-          <td style="font-weight:700;white-space:nowrap;${riskStyle}">
-            ${r.risk_label || "—"} <span style="opacity:0.7;">(${pct})</span>
-          </td>
-          <td>${attackBadge}</td>
-          <td class="td-muted" style="white-space:nowrap;">
-            ${r.created_at ? r.created_at.substring(0, 16).replace("T", " ") : "—"}
-          </td>
-        </tr>
-      `;
-    }).join("");
+  const RISK_COLORS = {
+    Critical: "color:#fca5a5;",
+    High:     "color:#fcd34d;",
+    Medium:   "color:#93c5fd;",
+    Low:      "color:#86efac;",
   };
+
+  tbody.innerHTML = rows.map((r, i) => {
+    const label     = r.risk_label  || "—";
+    const score     = r.risk_score  != null ? r.risk_score : null;
+    const pct       = score != null ? `${Math.round(score * 100)}%` : "—";
+    const riskStyle = RISK_COLORS[label] || "color:var(--text-muted);";
+    const attack    = r.attack_type || "—";
+
+    const proto = r.top_protocols
+      ? r.top_protocols.split(",").map(p =>
+          `<span class="proto-pill">${p.trim()}</span>`).join("")
+      : "—";
+
+    return `<tr>
+      <td class="tbl-muted">${i + 1}</td>
+      <td><span style="font-weight:600;color:var(--text-main);">${r.filename}</span></td>
+      <td class="tbl-right">${(r.total_packets || 0).toLocaleString()}</td>
+      <td class="tbl-right">${((r.total_bytes || 0) / 1024).toFixed(1)}</td>
+      <td class="tbl-right">${(r.duration_seconds || 0).toFixed(2)}</td>
+      <td>${proto}</td>
+      <td class="tbl-right">${(r.bytes_per_second || 0).toFixed(1)}</td>
+      <td style="font-weight:700;${riskStyle}">${label} ${pct}</td>
+      <td style="font-size:.78rem;${riskStyle}">${attack}</td>
+      <td class="tbl-muted">
+        ${r.created_at ? r.created_at.substring(0, 16).replace("T", " ") : "—"}
+      </td>
+    </tr>`;
+  }).join("");
+};
+
 
   // ══════════════════════════════════════════════════════════════════════════
   // ERROR BANNER

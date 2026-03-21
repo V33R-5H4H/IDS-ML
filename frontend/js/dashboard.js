@@ -436,6 +436,7 @@ function navigateTo(section, cfg) {
   if (section === "health")   checkAPIHealth();
   if (section === "account")  initAccountSection(currentUser);
   if (section === "pcap")     { if (typeof loadPcapHistory === "function") loadPcapHistory(); }
+  if (section === 'predictions') { if (typeof loadPredictions === 'function') loadPredictions(); }
 }
 
 // ── USERS TABLE ───────────────────────────────────────────────────────────
