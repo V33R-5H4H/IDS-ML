@@ -52,6 +52,14 @@ def create_access_token(data: dict) -> str:
     payload["exp"] = datetime.utcnow() + timedelta(hours=TOKEN_HOURS)
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
+def decode_token(token: str) -> Optional[dict]:
+    """Decode and validate a JWT token, returning the payload or None."""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload if payload.get("sub") else None
+    except JWTError:
+        return None
+
 def authenticate_user(db: Session, username: str, password: str):
     user = db.query(User).filter(User.username == username).first()
     if not user or not verify_password(password, user.hashed_password):

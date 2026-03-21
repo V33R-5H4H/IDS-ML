@@ -240,21 +240,6 @@
     </div>
   </section>
 
-  <!-- LIVE CAPTURE -->
-  <section id="section-live" class="content-section">
-    <div class="section-header">
-      <h1 class="section-title"><i class="bi bi-broadcast"></i> Live Packet Capture</h1>
-    </div>
-    <div class="card">
-      <div class="card-header"><h3>Live Capture</h3></div>
-      <div class="card-body coming-soon">
-        <i class="bi bi-broadcast coming-soon-icon"></i>
-        <p>Real-time monitoring — Phase 1, Week 4.</p>
-        <span class="phase-badge">Phase 1</span>
-      </div>
-    </div>
-  </section>
-
   <!-- REPORTS -->
 <div id="section-reports" class="content-section">
   <div class="section-header">
@@ -338,6 +323,92 @@
     </div>
   </div>
 </div>
+
+  <!-- LIVE CAPTURE -->
+  <section id="section-live" class="content-section">
+    <div class="section-header">
+      <h1 class="section-title"><i class="bi bi-broadcast"></i> Live Capture</h1>
+      <p class="section-sub">Real-time network packet analysis</p>
+    </div>
+
+    <!-- Error Banner -->
+    <div id="captureError" class="pcap-error-banner" style="display:none;"></div>
+
+    <!-- Controls -->
+    <div class="live-controls">
+      <div class="live-controls-left">
+        <select id="liveIfaceSelect" class="ids-select live-select">
+          <option value="">Loading interfaces…</option>
+        </select>
+        <input id="liveBpfFilter" type="text" class="form-input live-filter-input"
+               placeholder="BPF filter (e.g. tcp port 80)" />
+      </div>
+      <div class="live-controls-right">
+        <span id="captureStatusBadge" class="capture-status-badge stopped">
+          <i class="bi bi-stop-circle me-1"></i> Stopped
+        </span>
+        <button id="btnCaptureStart" class="btn btn-primary" onclick="startLiveCapture()">
+          <i class="bi bi-play-fill"></i> Start
+        </button>
+        <button id="btnCaptureStop" class="btn btn-danger" onclick="stopLiveCapture()" disabled>
+          <i class="bi bi-stop-fill"></i> Stop
+        </button>
+      </div>
+    </div>
+
+    <!-- Live Stats -->
+    <div class="stats-grid" style="margin-top:16px;">
+      <div class="stat-card blue">
+        <div class="stat-icon"><i class="bi bi-box-fill"></i></div>
+        <div class="stat-value" id="liveStatPackets">0</div>
+        <div class="stat-label">Packets Captured</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-icon"><i class="bi bi-clock-fill"></i></div>
+        <div class="stat-value" id="liveStatDuration">0s</div>
+        <div class="stat-label">Duration</div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-icon"><i class="bi bi-shield-exclamation"></i></div>
+        <div class="stat-value" id="liveStatThreats">0</div>
+        <div class="stat-label">Threats Detected</div>
+      </div>
+      <div class="stat-card teal">
+        <div class="stat-icon"><i class="bi bi-speedometer2"></i></div>
+        <div class="stat-value" id="liveStatPPS">0</div>
+        <div class="stat-label">Packets/sec</div>
+      </div>
+    </div>
+
+    <!-- Packet Feed -->
+    <div class="card" style="margin-top:16px;">
+      <div class="card-header">
+        <h3><i class="bi bi-list-ul me-2"></i>Packet Feed</h3>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-sm btn-ghost" onclick="exportLiveCapture('json')">
+            <i class="bi bi-filetype-json"></i> JSON
+          </button>
+          <button class="btn btn-sm btn-ghost" onclick="exportLiveCapture('csv')">
+            <i class="bi bi-filetype-csv"></i> CSV
+          </button>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div id="liveFeedWrap" class="live-feed-wrap">
+          <table class="data-table live-feed-table">
+            <thead>
+              <tr>
+                <th>Time</th><th>Source</th><th>Destination</th>
+                <th>Protocol</th><th class="text-right">Length</th>
+                <th>Info</th><th>Risk</th>
+              </tr>
+            </thead>
+            <tbody id="liveFeedBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- USER MANAGEMENT -->
   <section id="section-users" class="content-section">
@@ -516,6 +587,7 @@
 <script src="js/auth.js"></script>
 <script src="js/api.js"></script>
 <script src="js/pcap.js"></script>
+<script src="js/live_capture.js"></script>
 <script src="js/account.js"></script>
 <script src="js/dashboard.js"></script>
 <script src="js/predictions.js"></script>

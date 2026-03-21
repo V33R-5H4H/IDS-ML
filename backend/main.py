@@ -1,9 +1,12 @@
 # backend/main.py
+import asyncio
+import csv
+import io
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException, File, UploadFile
+from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, WebSocket, WebSocketDisconnect, Query
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from datetime import datetime, timedelta
@@ -18,6 +21,7 @@ from backend.auth import (
     get_current_user, Token, UserOut, require_roles
 )
 from backend.pcap_analyzer import run_analysis, _orm_to_dict
+from backend.live_capture import capture_manager, get_interfaces as _get_interfaces
 
 # ══════════════════════════════════════════════════════════════════════════════
 # DEFAULT ADMIN SEED
@@ -752,6 +756,132 @@ async def reports_summary(
         "model_accuracy":   "85.9%",
         "recent":           [_orm_to_dict(r) for r in rows[:10]],
     }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LIVE CAPTURE  (admin / analyst)
+# ══════════════════════════════════════════════════════════════════════════════
+class CaptureStartRequest(BaseModel):
+    interface: Optional[str] = None
+    bpf_filter: Optional[str] = None
+
+
+@app.get("/live-capture/interfaces", tags=["Live Capture"])
+async def live_capture_interfaces(
+    _user: User = Depends(get_current_user),
+):
+    """Return available network interfaces for live capture."""
+    ifaces = _get_interfaces()
+    if not ifaces:
+        return {
+            "interfaces": [],
+            "error": "No interfaces found. Ensure Scapy and Npcap are installed "
+                     "and the application is running with admin privileges.",
+        }
+    return {"interfaces": ifaces}
+
+
+@app.post("/live-capture/start", tags=["Live Capture"])
+async def live_capture_start(
+    req: CaptureStartRequest,
+    _user: User = Depends(require_roles("admin", "analyst")),
+):
+    """Start live packet capture."""
+    if capture_manager.is_running:
+        raise HTTPException(400, "Capture already running")
+    try:
+        loop = asyncio.get_event_loop()
+        capture_manager.start(
+            interface=req.interface,
+            bpf_filter=req.bpf_filter,
+            loop=loop,
+        )
+        return {"status": "started", "interface": req.interface, "filter": req.bpf_filter}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to start capture: {e}")
+
+
+@app.post("/live-capture/stop", tags=["Live Capture"])
+async def live_capture_stop(
+    _user: User = Depends(require_roles("admin", "analyst")),
+):
+    """Stop live packet capture."""
+    summary = capture_manager.stop()
+    return {"status": "stopped", "summary": summary}
+
+
+@app.get("/live-capture/status", tags=["Live Capture"])
+async def live_capture_status(
+    _user: User = Depends(get_current_user),
+):
+    """Return current capture state and statistics."""
+    return capture_manager.get_status()
+
+
+@app.get("/live-capture/export", tags=["Live Capture"])
+async def live_capture_export(
+    format: str = Query("json", regex="^(json|csv)$"),
+    limit: int = Query(500, ge=1, le=5000),
+    _user: User = Depends(require_roles("admin", "analyst")),
+):
+    """Export captured packets as JSON or CSV."""
+    packets = capture_manager.get_packets(limit=limit)
+    if not packets:
+        raise HTTPException(404, "No captured packets to export")
+
+    if format == "csv":
+        output = io.StringIO()
+        fields = ["timestamp", "src", "dst", "protocol", "length", "info", "risk"]
+        writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(packets)
+        output.seek(0)
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=live_capture.csv"},
+        )
+    else:
+        import json as _json
+        content = _json.dumps(packets, indent=2)
+        return StreamingResponse(
+            iter([content]),
+            media_type="application/json",
+            headers={"Content-Disposition": "attachment; filename=live_capture.json"},
+        )
+
+
+@app.websocket("/ws/live-capture")
+async def ws_live_capture(ws: WebSocket, token: str = Query(...)):
+    """WebSocket endpoint for real-time packet feed.
+    Authenticates via query parameter: ?token=<jwt_token>
+    """
+    from backend.auth import decode_token
+    try:
+        payload = decode_token(token)
+        if not payload:
+            await ws.close(code=4001, reason="Invalid token")
+            return
+    except Exception:
+        await ws.close(code=4001, reason="Invalid token")
+        return
+
+    await ws.accept()
+    queue = capture_manager.subscribe()
+    try:
+        while True:
+            try:
+                pkt = await asyncio.wait_for(queue.get(), timeout=30)
+                await ws.send_json(pkt)
+            except asyncio.TimeoutError:
+                # Send keepalive ping
+                await ws.send_json({"type": "ping"})
+            except WebSocketDisconnect:
+                break
+    except Exception:
+        pass
+    finally:
+        capture_manager.unsubscribe(queue)
 
 
 # ══════════════════════════════════════════════════════════════════════════════

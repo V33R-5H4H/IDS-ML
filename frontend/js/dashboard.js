@@ -197,8 +197,8 @@ const skeletons = `<div class="skeleton-row"></div>
 
 async function loadDashboardCards(cfg, role) {
   document.getElementById("dashGreeting").innerHTML =
-    `<i class="bi bi-speedometer2 me-2"></i>${cfg.greeting}`;
-  document.getElementById("dashSubtitle").textContent = cfg.subtitle;
+    `<i class="bi bi-speedometer2 me-2"></i>${cfg.banner.greeting}`;
+  document.getElementById("dashSubtitle").textContent = cfg.banner.subtitle;
 
   // Reset stat cards
   ["statTotal", "statAttacks", "statNormal", "statAlerts"].forEach(id => {
@@ -245,11 +245,12 @@ async function _loadDashboardStats(role) {
 }
 
 // ── Chart instances (module-level so we can destroy on re-render) ──────────
-const _dc = { donut: null, line: null };
+const _dc = { donut: null, line: null, attacks: null };
 
 function _renderDashboardCharts(stats) {
-  if (_dc.donut) { _dc.donut.destroy(); _dc.donut = null; }
-  if (_dc.line)  { _dc.line.destroy();  _dc.line  = null; }
+  if (_dc.donut)   { _dc.donut.destroy();   _dc.donut   = null; }
+  if (_dc.line)    { _dc.line.destroy();    _dc.line    = null; }
+  if (_dc.attacks) { _dc.attacks.destroy(); _dc.attacks = null; }
 
   const donutCtx = document.getElementById("chartDonut")?.getContext("2d");
   if (donutCtx) {
@@ -345,6 +346,78 @@ function _renderDashboardCharts(stats) {
       },
     });
   }
+
+  // Attack type distribution bar chart
+  _renderAttackChart(stats);
+  // Top attacks mini-table
+  _renderTopAttacksTable(stats);
+}
+
+function _renderAttackChart(stats) {
+  const ctx = document.getElementById("chartAttacks")?.getContext("2d");
+  if (!ctx) return;
+  const attacks = stats.top_attacks || [];
+  if (!attacks.length) {
+    ctx.canvas.parentElement.innerHTML =
+      `<div style="display:flex;align-items:center;justify-content:center;height:100%;
+                   color:var(--text-muted);font-size:.82rem;gap:8px;flex-direction:column;">
+         <i class="bi bi-shield-check" style="font-size:1.6rem;opacity:.3;"></i>
+         No attack data yet
+       </div>`;
+    return;
+  }
+  const colors = ["#ef4444","#f59e0b","#3b82f6","#a855f7","#14b8a6"];
+  _dc.attacks = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: attacks.map(a => a.type),
+      datasets: [{
+        data: attacks.map(a => a.count),
+        backgroundColor: attacks.map((_, i) => colors[i % colors.length] + "cc"),
+        borderRadius: 4,
+        borderSkipped: false,
+        barThickness: 18,
+      }],
+    },
+    options: {
+      indexAxis: "y",
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { beginAtZero: true, grid: { color: "rgba(255,255,255,.04)" },
+             ticks: { color: "#64748b", precision: 0, font: { size: 10 } } },
+        y: { grid: { display: false },
+             ticks: { color: "#94a3b8", font: { size: 11 } } },
+      },
+    },
+  });
+}
+
+function _renderTopAttacksTable(stats) {
+  const el = document.getElementById("topAttacksBody");
+  if (!el) return;
+  const attacks = stats.top_attacks || [];
+  if (!attacks.length) {
+    el.innerHTML = `<tr><td colspan="3" style="text-align:center;color:var(--text-muted);
+      padding:14px;font-size:.82rem;">No attack types detected yet</td></tr>`;
+    return;
+  }
+  const colors = ["#ef4444","#f59e0b","#3b82f6","#a855f7","#14b8a6"];
+  const maxCount = attacks[0]?.count || 1;
+  el.innerHTML = attacks.map((a, i) => `
+    <tr>
+      <td style="padding:7px 10px;font-size:.82rem;font-weight:600;color:${colors[i % 5]};">
+        ${a.type}
+      </td>
+      <td style="padding:7px 10px;width:50%;">
+        <div style="background:var(--border);border-radius:3px;height:6px;overflow:hidden;">
+          <div style="width:${Math.round(a.count / maxCount * 100)}%;height:100%;
+                      background:${colors[i % 5]};border-radius:3px;"></div>
+        </div>
+      </td>
+      <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:.82rem;
+                 color:var(--text-main);">${a.count}</td>
+    </tr>`).join("");
 }
 
 function adminCards() {
@@ -415,7 +488,34 @@ function adminCards() {
     </div>
   </div>
 
-  <!-- Row 2 -->
+  <!-- Row 2: Attack Distribution + Top Attacks -->
+  <div class="col-lg-6">
+    <div class="info-card h-100">
+      <div class="info-card-header">
+        <i class="bi bi-shield-exclamation me-2 text-danger"></i>Attack Distribution
+      </div>
+      <div class="info-card-body" style="height:200px;">
+        <canvas id="chartAttacks"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="info-card h-100">
+      <div class="info-card-header">
+        <i class="bi bi-bullseye me-2 text-warning"></i>Top Attack Types
+      </div>
+      <div class="info-card-body p-0">
+        <table style="width:100%;border-collapse:collapse;">
+          <tbody id="topAttacksBody">
+            <tr><td colspan="3" class="tbl-empty">
+              <div class="skeleton-row"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 3: Health + Profile + Permissions -->
   <div class="col-lg-4">
     <div class="info-card h-100">
       <div class="info-card-header">
@@ -508,6 +608,34 @@ function analystCards() {
       </div>
     </div>
   </div>
+
+  <!-- Attack Distribution + Top Attacks -->
+  <div class="col-lg-6">
+    <div class="info-card h-100">
+      <div class="info-card-header">
+        <i class="bi bi-shield-exclamation me-2 text-danger"></i>Attack Distribution
+      </div>
+      <div class="info-card-body" style="height:200px;">
+        <canvas id="chartAttacks"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="info-card h-100">
+      <div class="info-card-header">
+        <i class="bi bi-bullseye me-2 text-warning"></i>Top Attack Types
+      </div>
+      <div class="info-card-body p-0">
+        <table style="width:100%;border-collapse:collapse;">
+          <tbody id="topAttacksBody">
+            <tr><td colspan="3" class="tbl-empty">
+              <div class="skeleton-row"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <div class="col-lg-6">
     <div class="info-card h-100">
       <div class="info-card-header">
@@ -780,6 +908,7 @@ function navigateTo(section, cfg) {
   if (section === "pcap")     { if (typeof loadPcapHistory === "function") loadPcapHistory(); }
   if (section === 'predictions') { if (typeof loadPredictions === 'function') loadPredictions(); }
   if (section === 'reports') { if (typeof loadReports === 'function') loadReports(); }
+  if (section === 'live') { if (typeof initLiveCapture === 'function') initLiveCapture(); }
 }
 
 // ── USERS TABLE ───────────────────────────────────────────────────────────
