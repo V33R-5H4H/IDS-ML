@@ -6,6 +6,7 @@
   <title>IDS-ML v2.0 — Dashboard</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"/>
   <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -255,19 +256,88 @@
   </section>
 
   <!-- REPORTS -->
-  <section id="section-reports" class="content-section">
-    <div class="section-header">
-      <h1 class="section-title"><i class="bi bi-bar-chart-fill"></i> Security Reports</h1>
-    </div>
-    <div class="card">
-      <div class="card-header"><h3>Reports</h3></div>
-      <div class="card-body coming-soon">
-        <i class="bi bi-file-earmark-bar-graph coming-soon-icon"></i>
-        <p>Read-only summaries — Phase 2.</p>
-        <span class="phase-badge">Phase 2</span>
+<div id="section-reports" class="content-section">
+  <div class="section-header">
+    <div>
+      <div class="section-title">
+        <i class="bi bi-bar-chart-fill"></i>Security Reports
+      </div>
+      <div class="section-sub">
+        Read-only summary — last 7 days of detection activity
       </div>
     </div>
-  </section>
+    <button class="btn btn-ghost btn-sm" onclick="loadReports()">
+      <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+    </button>
+  </div>
+
+  <!-- Stat cards -->
+  <div id="reports-stats" class="report-stats-grid"></div>
+
+  <!-- Charts + Protocol breakdown -->
+  <div class="row g-3 mb-3">
+    <div class="col-lg-5">
+      <div class="info-card h-100">
+        <div class="info-card-header">
+          <i class="bi bi-bar-chart-fill me-2 text-primary"></i>Top Attack Types
+        </div>
+        <div class="info-card-body" style="height:220px;position:relative;">
+          <canvas id="reportBarChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="info-card h-100">
+        <div class="info-card-header">
+          <i class="bi bi-graph-up me-2 text-info"></i>7-Day Trend
+        </div>
+        <div class="info-card-body" style="height:220px;position:relative;">
+          <canvas id="reportLineChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3">
+      <div class="info-card h-100">
+        <div class="info-card-header">
+          <i class="bi bi-diagram-3 me-2 text-teal"></i>Protocols
+        </div>
+        <div class="info-card-body" id="reports-protocols"
+             style="display:flex;flex-direction:column;gap:10px;">
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row" style="width:70%"></div>
+          <div class="skeleton-row" style="width:50%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent analyses -->
+  <div class="info-card">
+    <div class="info-card-header">
+      <i class="bi bi-clock-history me-2 text-warning"></i>Recent Analyses
+      <span class="ms-auto" style="font-size:.74rem;color:var(--text-muted);">
+        Last 10 results
+      </span>
+    </div>
+    <div class="info-card-body p-0">
+      <div class="table-responsive">
+        <table class="ids-table">
+          <thead>
+            <tr>
+              <th>Filename</th><th>Risk</th><th>Attack Type</th>
+              <th class="text-right">Packets</th><th>Analysed At</th>
+            </tr>
+          </thead>
+          <tbody id="reports-recent">
+            <tr><td colspan="5" class="tbl-empty">
+              <div class="skeleton-row"></div>
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
 
   <!-- USER MANAGEMENT -->
   <section id="section-users" class="content-section">
@@ -449,5 +519,6 @@
 <script src="js/account.js"></script>
 <script src="js/dashboard.js"></script>
 <script src="js/predictions.js"></script>
+<script src="js/reports.js"></script>
 </body>
 </html>

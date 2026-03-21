@@ -2,6 +2,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey
 from sqlalchemy.sql import func
 from backend.database import Base
+from datetime import datetime
 
 
 class User(Base):
@@ -13,7 +14,7 @@ class User(Base):
     hashed_password = Column(String,  nullable=False)
     role            = Column(String,  default="viewer")
     is_active       = Column(Boolean, default=True)
-    created_at      = Column(DateTime(timezone=True), server_default=func.now())
+    created_at      = Column(DateTime, default=datetime.utcnow)
     last_login      = Column(DateTime(timezone=True), nullable=True)
 
 

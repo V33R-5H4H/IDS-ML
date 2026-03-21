@@ -111,208 +111,146 @@
     }
 
     pcapRenderResult(res.data);
-    loadPcapHistory();
+    loadPcapHistory(res.data?.result?.id ?? null);
   };
 
   // ══════════════════════════════════════════════════════════════════════════
   // RENDER RESULT CARD
   // ══════════════════════════════════════════════════════════════════════════
   function pcapRenderResult(payload) {
-    const r      = payload.result;
-    const isDup  = payload.duplicate;
+  try {
+    const r     = payload.result;
+    const isDup = payload.duplicate;
 
-    // Header
-    document.getElementById("pcap-result-filename").textContent = r.filename;
-    document.getElementById("pcap-result-sha256").textContent   = r.sha256;
+    const safeStr = v  => (v != null ? String(v) : "—");
+    const safeFix = (v, d) => (v != null ? Number(v).toFixed(d) : "—");
+    const safeLoc = v  => (v != null ? Number(v).toLocaleString() : "—");
 
-    // Status badge
-    const badge = document.getElementById("pcap-result-badge");
-    if (isDup) {
-      badge.textContent = "♻️ Cached Result";
-      badge.className   = "pcap-badge warning";
-    } else {
-      badge.textContent = "✅ Analysis Complete";
-      badge.className   = "pcap-badge success";
-    }
-
-    // ── 12 stat cards ─────────────────────────────────────────────────────
     const features = [
-      { label: "Total Packets",  value: r.total_packets.toLocaleString(),              icon: "bi-box-seam",         color: "blue"   },
-      { label: "Total Bytes",    value: (r.total_bytes / 1024).toFixed(1) + " KB",     icon: "bi-hdd",              color: "purple" },
-      { label: "Duration",       value: r.duration_seconds.toFixed(2) + " s",          icon: "bi-stopwatch",        color: "teal"   },
-      { label: "Source IPs",     value: r.unique_src_ips,                               icon: "bi-pc-display",       color: "blue"   },
-      { label: "Dest IPs",       value: r.unique_dst_ips,                               icon: "bi-bullseye",         color: "yellow" },
-      { label: "Protocols",      value: r.top_protocols || "—",                         icon: "bi-diagram-3",        color: "purple" },
-      { label: "Avg Pkt Size",   value: r.avg_packet_size.toFixed(1) + " B",           icon: "bi-rulers",           color: "teal"   },
-      { label: "Max Pkt Size",   value: r.max_packet_size.toLocaleString() + " B",     icon: "bi-graph-up-arrow",   color: "yellow" },
-      { label: "TCP Packets",    value: r.tcp_packets.toLocaleString(),                 icon: "bi-arrow-left-right", color: "blue"   },
-      { label: "UDP Packets",    value: r.udp_packets.toLocaleString(),                 icon: "bi-broadcast",        color: "yellow" },
-      { label: "ICMP Packets",   value: r.icmp_packets.toLocaleString(),                icon: "bi-lightning-charge", color: "red"    },
-      { label: "Bytes / Second", value: r.bytes_per_second.toFixed(1),                 icon: "bi-speedometer2",     color: "green"  },
+      { label:"Total Packets",  value:safeLoc(r.total_packets),                                            icon:"bi-box-seam",         color:"blue"   },
+      { label:"Total Bytes",    value:safeFix(r.total_bytes != null ? r.total_bytes/1024 : null, 1)+" KB", icon:"bi-hdd",              color:"purple" },
+      { label:"Duration",       value:safeFix(r.duration_seconds, 2)+" s",                                 icon:"bi-stopwatch",        color:"teal"   },
+      { label:"Source IPs",     value:safeStr(r.unique_src_ips),                                            icon:"bi-pc-display",       color:"blue"   },
+      { label:"Dest IPs",       value:safeStr(r.unique_dst_ips),                                            icon:"bi-bullseye",         color:"yellow" },
+      { label:"Protocols",      value:r.top_protocols || "—",                                               icon:"bi-diagram-3",        color:"purple" },
+      { label:"Avg Pkt Size",   value:safeFix(r.avg_packet_size, 1)+" B",                                  icon:"bi-rulers",           color:"teal"   },
+      { label:"Max Pkt Size",   value:safeLoc(r.max_packet_size)+" B",                                     icon:"bi-graph-up-arrow",   color:"yellow" },
+      { label:"TCP Packets",    value:safeLoc(r.tcp_packets),                                               icon:"bi-arrow-left-right", color:"blue"   },
+      { label:"UDP Packets",    value:safeLoc(r.udp_packets),                                               icon:"bi-broadcast",        color:"yellow" },
+      { label:"ICMP Packets",   value:safeLoc(r.icmp_packets),                                              icon:"bi-lightning-charge", color:"red"    },
+      { label:"Bytes / Second", value:safeFix(r.bytes_per_second, 1),                                      icon:"bi-speedometer2",     color:"green"  },
     ];
 
-    document.getElementById("pcap-features-grid").innerHTML = features.map(f => `
-      <div class="stat-card ${f.color}">
-        <div class="stat-icon"><i class="bi ${f.icon}"></i></div>
-        <div class="stat-value">${f.value}</div>
-        <div class="stat-label">${f.label}</div>
-      </div>
-    `).join("");
+    const labelColors = { Critical:"#fca5a5", High:"#fcd34d", Medium:"#93c5fd", Low:"#86efac" };
+    const lbl   = r.risk_label  || "Unknown";
+    const score = r.risk_score  != null ? (r.risk_score * 100).toFixed(1) + "%" : "—";
+    const atk   = r.attack_type || "—";
+    const mdl   = r.model_used  || "Heuristic";
+    const clr   = labelColors[lbl] || "#94a3b8";
 
-    // ── ML Risk + Attack Type block ───────────────────────────────────────
-    const resultBody = document.querySelector("#pcap-result-card .pcap-result-body");
-    const oldRisk    = document.getElementById("pcap-risk-block");
-    if (oldRisk) oldRisk.remove();
-
-    if (r.risk_score !== undefined && r.risk_score !== null) {
-      const c   = RISK_COLORS[r.risk_label] || RISK_COLORS.Low;
-      const pct = Math.round(r.risk_score * 100);
-
-      // Attack type pill
-      let attackPill = "";
-      if (r.attack_type && r.attack_type !== "unknown") {
-        if (r.attack_type === "normal") {
-          attackPill = `
-            <span style="font-size:0.72rem;font-weight:700;padding:3px 10px;
-                         border-radius:20px;background:rgba(34,197,94,0.15);
-                         border:1px solid rgba(34,197,94,0.3);color:#86efac;">
-              <i class="bi bi-check-circle-fill" style="margin-right:4px;"></i>NORMAL TRAFFIC
-            </span>`;
-        } else {
-          attackPill = `
-            <span style="font-size:0.72rem;font-weight:700;padding:3px 10px;
-                         border-radius:20px;background:rgba(239,68,68,0.15);
-                         border:1px solid rgba(239,68,68,0.3);color:#fca5a5;">
-              <i class="bi bi-bug-fill" style="margin-right:4px;"></i>${r.attack_type.toUpperCase()}
-            </span>`;
-        }
-      }
-
-      const riskEl  = document.createElement("div");
-      riskEl.id     = "pcap-risk-block";
-      riskEl.style.cssText = `
-        margin-top: 14px;
-        padding: 14px 16px;
-        border-radius: var(--radius);
-        background: ${c.bg};
-        border: 1px solid ${c.border};
-      `;
-      riskEl.innerHTML = `
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-          <span style="font-size:0.75rem;font-weight:700;text-transform:uppercase;
-                       letter-spacing:0.5px;color:${c.text};">
-            <i class="bi bi-shield-exclamation" style="margin-right:5px;"></i>Risk Assessment
-          </span>
-          <span style="font-size:0.78rem;font-weight:700;padding:4px 12px;border-radius:20px;
-                       background:${c.bg};border:1px solid ${c.border};color:${c.text};">
-            ${r.risk_label} &nbsp;·&nbsp; ${pct}%
-          </span>
-        </div>
-        <div style="height:6px;background:var(--bg-card2);border-radius:10px;overflow:hidden;">
-          <div id="pcap-risk-bar"
-               style="height:100%;width:0%;background:${c.bar};
-                      border-radius:10px;transition:width 0.7s ease;"></div>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:6px;">
-          <span style="font-size:0.72rem;color:var(--text-muted);">
-            Model: <span style="color:${c.text};font-weight:600;">${r.model_used || "heuristic"}</span>
-            &nbsp;&nbsp;Score: <span style="color:${c.text};font-weight:600;">${pct} / 100</span>
-          </span>
-          ${attackPill}
-        </div>
-      `;
-
-      if (resultBody) resultBody.appendChild(riskEl);
-
-      // Animate bar after paint
-      setTimeout(() => {
-        const b = document.getElementById("pcap-risk-bar");
-        if (b) b.style.width = pct + "%";
-      }, 80);
-    }
-
-    // ── SHA-256 block ────────────────────────────────────────────────────
-    const oldSha = document.getElementById("pcap-sha-block");
-    if (oldSha) oldSha.remove();
-
-    const shaEl  = document.createElement("div");
-    shaEl.id     = "pcap-sha-block";
-    shaEl.style.cssText = `
-      background: var(--bg-dark);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 10px 14px;
-      margin-top: 14px;
-    `;
-    shaEl.innerHTML = `
-      <span style="color:var(--text-muted);font-size:0.75rem;font-weight:700;
-                   text-transform:uppercase;letter-spacing:0.5px;">SHA-256</span>
-      <div style="color:var(--text-muted);font-size:0.75rem;margin-top:4px;
-                  word-break:break-all;font-family:monospace;">${r.sha256}</div>
-    `;
-    if (resultBody) resultBody.appendChild(shaEl);
-
-    // Show card + scroll
     const card = document.getElementById("pcap-result-card");
+    if (!card) { pcapShowError("Result container missing from page — check dashboard.html."); return; }
+
+    card.innerHTML = `
+      <div class="pcap-result-header">
+        <div class="pcap-result-title">
+          <i class="bi bi-file-earmark-binary-fill me-2" style="color:var(--accent-blue);"></i>
+          <span id="pcap-result-filename" style="font-weight:700;color:var(--text-white);">
+            ${safeStr(r.filename)}
+          </span>
+        </div>
+        <span id="pcap-result-badge" class="pcap-badge ${isDup ? "warning" : "success"}">
+          ${isDup ? "♻️ Cached Result" : "✅ Analysis Complete"}
+        </span>
+      </div>
+      <div style="font-size:.71rem;color:var(--text-muted);margin-bottom:16px;
+                  word-break:break-all;font-family:monospace;">
+        SHA256: ${safeStr(r.sha256)}
+      </div>
+
+      <!-- Risk card -->
+      <div class="pcap-risk-card" style="border-left:4px solid ${clr};margin-bottom:20px;">
+        <div class="pcap-risk-header">
+          <i class="bi bi-shield-fill" style="color:${clr};font-size:1.3rem;"></i>
+          <div>
+            <div class="pcap-risk-label" style="color:${clr};">${lbl}</div>
+            <div class="pcap-risk-sub">ML Risk Classification</div>
+          </div>
+          <div class="ms-auto text-end">
+            <div style="font-size:1.4rem;font-weight:700;color:${clr};">${score}</div>
+            <div style="font-size:.68rem;color:var(--text-muted);">Risk Score</div>
+          </div>
+        </div>
+        <div class="pcap-risk-meta">
+          <div class="pcap-risk-meta-item"><span>Attack Type</span><strong style="color:${clr};">${atk}</strong></div>
+          <div class="pcap-risk-meta-item"><span>Model</span><strong>${mdl}</strong></div>
+          <div class="pcap-risk-meta-item"><span>First Seen</span>
+            <strong>${r.first_seen ? r.first_seen.substring(0,19).replace("T"," ") : "—"}</strong></div>
+          <div class="pcap-risk-meta-item"><span>Last Seen</span>
+            <strong>${r.last_seen ? r.last_seen.substring(0,19).replace("T"," ") : "—"}</strong></div>
+        </div>
+      </div>
+
+      <!-- 12 feature cards -->
+      <div class="pcap-features-grid">
+        ${features.map(f => `
+          <div class="pcap-feat-card ${f.color}">
+            <div class="pcap-feat-icon"><i class="bi ${f.icon}"></i></div>
+            <div class="pcap-feat-val">${f.value}</div>
+            <div class="pcap-feat-label">${f.label}</div>
+          </div>`).join("")}
+      </div>`;
+
     card.style.display = "block";
-    card.scrollIntoView({ behavior: "smooth", block: "start" });
+    setTimeout(() => card.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+
+  } catch (err) {
+    console.error("[PCAP] render error:", err);
+    pcapShowError("Could not render result: " + err.message);
   }
+}
+
+
 
   // ── History Table ─────────────────────────────────────────────────────────
-  window.loadPcapHistory = async function () {
-    const tbody = document.getElementById("pcap-history-body");
+  window.loadPcapHistory = async function (highlightId = null) {
+  const tbody = document.getElementById("pcap-history-body");
   if (!tbody) return;
 
-  // Skeleton
-  tbody.innerHTML = `<tr><td colspan="10" class="tbl-empty">
-    <div class="skeleton-row"></div>
-    <div class="skeleton-row" style="width:65%"></div>
-  </td></tr>`;
-
-  const rows = await API.getPcapHistory(20);
-
+  const rows = await API.getPcapHistory(50);
   if (!rows || rows.length === 0) {
     tbody.innerHTML = `<tr><td colspan="10" class="tbl-empty">
-      No analyses yet — upload your first PCAP above.
-    </td></tr>`;
+      No analyses yet — upload a PCAP file above to get started.</td></tr>`;
     return;
   }
 
-  const RISK_COLORS = {
-    Critical: "color:#fca5a5;",
-    High:     "color:#fcd34d;",
-    Medium:   "color:#93c5fd;",
-    Low:      "color:#86efac;",
-  };
-
-  tbody.innerHTML = rows.map((r, i) => {
-    const label     = r.risk_label  || "—";
-    const score     = r.risk_score  != null ? r.risk_score : null;
-    const pct       = score != null ? `${Math.round(score * 100)}%` : "—";
-    const riskStyle = RISK_COLORS[label] || "color:var(--text-muted);";
-    const attack    = r.attack_type || "—";
-
-    const proto = r.top_protocols
-      ? r.top_protocols.split(",").map(p =>
-          `<span class="proto-pill">${p.trim()}</span>`).join("")
-      : "—";
-
-    return `<tr>
-      <td class="tbl-muted">${i + 1}</td>
-      <td><span style="font-weight:600;color:var(--text-main);">${r.filename}</span></td>
-      <td class="tbl-right">${(r.total_packets || 0).toLocaleString()}</td>
-      <td class="tbl-right">${((r.total_bytes || 0) / 1024).toFixed(1)}</td>
-      <td class="tbl-right">${(r.duration_seconds || 0).toFixed(2)}</td>
-      <td>${proto}</td>
-      <td class="tbl-right">${(r.bytes_per_second || 0).toFixed(1)}</td>
-      <td style="font-weight:700;${riskStyle}">${label} ${pct}</td>
-      <td style="font-size:.78rem;${riskStyle}">${attack}</td>
-      <td class="tbl-muted">
-        ${r.created_at ? r.created_at.substring(0, 16).replace("T", " ") : "—"}
-      </td>
+  const C = { Critical:"#fca5a5", High:"#fcd34d", Medium:"#93c5fd", Low:"#86efac" };
+  tbody.innerHTML = rows.map(r => {
+    const isNew = highlightId && r.id === highlightId;
+    return `<tr class="${isNew ? "row-highlight" : ""}">
+      <td style="color:var(--text-muted);font-size:.75rem;">#${r.id}</td>
+      <td style="font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;
+                 white-space:nowrap;color:var(--text-main);" title="${r.filename}">${r.filename}</td>
+      <td class="tbl-right">${(r.total_packets   || 0).toLocaleString()}</td>
+      <td class="tbl-right">${((r.file_size      || 0)/1024).toFixed(1)}</td>
+      <td class="tbl-right">${(r.duration_seconds|| 0).toFixed(2)}</td>
+      <td style="color:var(--text-muted);font-size:.75rem;">${r.top_protocols || "—"}</td>
+      <td class="tbl-right">${(r.bytes_per_second|| 0).toFixed(1)}</td>
+      <td><span style="font-weight:700;font-size:.78rem;
+                       color:${C[r.risk_label]||"var(--text-muted)"};">${r.risk_label||"—"}</span></td>
+      <td style="color:var(--text-muted);font-size:.75rem;">${r.attack_type||"—"}</td>
+      <td style="color:var(--text-muted);font-size:.73rem;">
+        ${r.created_at ? r.created_at.substring(0,16).replace("T"," ") : "—"}</td>
     </tr>`;
   }).join("");
+
+  if (highlightId) {
+    setTimeout(() => {
+      tbody.querySelector(".row-highlight")?.classList.remove("row-highlight");
+    }, 2500);
+  }
 };
+
 
 
   // ══════════════════════════════════════════════════════════════════════════

@@ -191,17 +191,19 @@ function renderProfileCard(user) {
         : "—"}</span></div>`;
 }
 
-// ── DASHBOARD CARDS ──────────────────────────────────────────────────────
-const skeletons = `<div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div>`;
+// ── DASHBOARD CARDS ────────────────────────────────────────────────────────
+const skeletons = `<div class="skeleton-row"></div>
+  <div class="skeleton-row"></div><div class="skeleton-row"></div>`;
 
 async function loadDashboardCards(cfg, role) {
-  _txt("dashGreeting", `<i class="bi bi-speedometer2 me-2"></i>${cfg.banner.greeting}`);
-  document.getElementById("dashGreeting").innerHTML = `<i class="bi bi-speedometer2 me-2"></i>${cfg.banner.greeting}`;
-  _txt("dashSubtitle", cfg.banner.subtitle);
+  document.getElementById("dashGreeting").innerHTML =
+    `<i class="bi bi-speedometer2 me-2"></i>${cfg.greeting}`;
+  document.getElementById("dashSubtitle").textContent = cfg.subtitle;
 
-  ["statTotal","statAttacks","statNormal","statAlerts"].forEach(id => {
+  // Reset stat cards
+  ["statTotal", "statAttacks", "statNormal", "statAlerts"].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.textContent = "0";
+    if (el) el.textContent = "—";
   });
   const sm = document.getElementById("statModel");
   if (sm) sm.textContent = "RF v1.0";
@@ -209,63 +211,239 @@ async function loadDashboardCards(cfg, role) {
   if (role === "admin") {
     const users = await API.users();
     const su = document.getElementById("statUsers");
-    if (su) su.textContent = users.length || "—";
+    if (su) su.textContent = users.length;
     document.getElementById("dashCards").innerHTML = adminCards();
   } else if (role === "analyst") {
     document.getElementById("dashCards").innerHTML = analystCards();
   } else {
     document.getElementById("dashCards").innerHTML = viewerCards();
   }
+  _loadHealthIntoCard();
+  _loadProfileIntoCard();
+  // Wire live stats + charts for all roles
+  await _loadDashboardStats(role);
+}
+
+// ── Live stats loader ──────────────────────────────────────────────────────
+async function _loadDashboardStats(role) {
+  const stats = await API.getDashboardStats();
+  if (!stats) return;
+
+  const el = id => document.getElementById(id);
+  if (el("statTotal"))   el("statTotal").textContent   = stats.total;
+  if (el("statAttacks")) el("statAttacks").textContent = stats.attacks;
+  if (el("statNormal"))  el("statNormal").textContent  = stats.normal;
+
+  // Update chart subtitle
+  const sub = el("dash-chart-subtitle");
+  if (sub) sub.textContent = `${stats.total} total · ${stats.attacks} threats`;
+  const cnt = el("chartDonutTotal");
+  if (cnt) cnt.textContent = stats.total;
+
+  // Render charts if canvases exist (admin + analyst only)
+  if (el("chartDonut")) _renderDashboardCharts(stats);
+}
+
+// ── Chart instances (module-level so we can destroy on re-render) ──────────
+const _dc = { donut: null, line: null };
+
+function _renderDashboardCharts(stats) {
+  if (_dc.donut) { _dc.donut.destroy(); _dc.donut = null; }
+  if (_dc.line)  { _dc.line.destroy();  _dc.line  = null; }
+
+  const donutCtx = document.getElementById("chartDonut")?.getContext("2d");
+  if (donutCtx) {
+    _dc.donut = new Chart(donutCtx, {
+      type: "doughnut",
+      data: {
+        labels: ["Critical", "High", "Medium", "Low"],
+        datasets: [{
+          data: [
+            stats.by_label.Critical, stats.by_label.High,
+            stats.by_label.Medium,   stats.by_label.Low,
+          ],
+          backgroundColor: [
+            "rgba(239,68,68,.85)", "rgba(245,158,11,.85)",
+            "rgba(59,130,246,.85)", "rgba(34,197,94,.85)",
+          ],
+          borderWidth: 0,
+          hoverOffset: 6,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: "72%",
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const pct = stats.total
+                  ? Math.round(ctx.parsed / stats.total * 100) : 0;
+                return ` ${ctx.label}: ${ctx.parsed}  (${pct}%)`;
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Custom colour legend
+    const legendEl = document.getElementById("chartLegend");
+    if (legendEl) {
+      const C = ["#ef4444","#f59e0b","#3b82f6","#22c55e"];
+      const L = ["Critical","High","Medium","Low"];
+      const V = [stats.by_label.Critical,stats.by_label.High,
+                 stats.by_label.Medium,  stats.by_label.Low];
+      legendEl.innerHTML = L.map((l,i) =>
+        `<span style="display:inline-flex;align-items:center;gap:5px;">
+           <span style="width:8px;height:8px;border-radius:50%;
+                        background:${C[i]};flex-shrink:0;"></span>
+           <span style="color:var(--text-muted);">${l}</span>
+           <strong style="color:${C[i]};">${V[i]}</strong>
+         </span>`).join("");
+    }
+  }
+
+  const lineCtx = document.getElementById("chartLine")?.getContext("2d");
+  if (lineCtx) {
+    const labels = stats.last_7_days.map(d =>
+      new Date(d.date).toLocaleDateString("en-IN", { month:"short", day:"numeric" }));
+    _dc.line = new Chart(lineCtx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "Total",
+            data: stats.last_7_days.map(d => d.total),
+            borderColor: "#3b82f6",
+            backgroundColor: "rgba(59,130,246,.08)",
+            tension: 0.4, fill: true, pointRadius: 4, pointHoverRadius: 6,
+          },
+          {
+            label: "Attacks",
+            data: stats.last_7_days.map(d => d.attacks),
+            borderColor: "#ef4444",
+            backgroundColor: "rgba(239,68,68,.08)",
+            tension: 0.4, fill: true, pointRadius: 4, pointHoverRadius: 6,
+          },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: {
+            labels: { color:"#94a3b8", font:{ size:11 }, boxWidth:12, padding:10 },
+          },
+        },
+        scales: {
+          x: { grid:{ color:"rgba(255,255,255,.04)" }, ticks:{ color:"#64748b", font:{ size:10 } } },
+          y: { beginAtZero:true, grid:{ color:"rgba(255,255,255,.04)" },
+               ticks:{ color:"#64748b", precision:0, font:{ size:10 } } },
+        },
+      },
+    });
+  }
 }
 
 function adminCards() {
   return `
-  <div class="col-lg-4">
-    <div class="info-card">
+  <!-- Row 1: Charts (8/12) + Quick Actions (4/12) -->
+  <div class="col-lg-8">
+    <div class="info-card h-100">
       <div class="info-card-header">
-        <i class="bi bi-heart-pulse-fill text-success"></i> System Health
-        <a href="#" class="card-link ms-auto" onclick="navigateTo('health');return false;">
-          Full Details <i class="bi bi-arrow-right"></i></a>
+        <i class="bi bi-bar-chart-fill me-2 text-primary"></i>Security Overview
+        <span id="dash-chart-subtitle" class="ms-auto"
+              style="font-size:.74rem;color:var(--text-muted);"></span>
+      </div>
+      <div class="info-card-body">
+        <div class="dash-charts-grid">
+          <!-- Doughnut -->
+          <div class="dash-donut-wrap">
+            <canvas id="chartDonut"></canvas>
+            <div class="dash-donut-center">
+              <div id="chartDonutTotal" style="font-size:1.6rem;font-weight:700;
+                   color:var(--text-white);line-height:1;">—</div>
+              <div style="font-size:.62rem;color:var(--text-muted);
+                   text-transform:uppercase;letter-spacing:.5px;margin-top:3px;">Total</div>
+            </div>
+          </div>
+          <!-- Line chart -->
+          <div style="height:200px;">
+            <canvas id="chartLine"></canvas>
+          </div>
+        </div>
+        <div id="chartLegend" class="dash-legend"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="col-lg-4">
+    <div class="info-card h-100">
+      <div class="info-card-header">
+        <i class="bi bi-lightning-fill me-2 text-warning"></i>Quick Actions
+      </div>
+      <div class="info-card-body p-0">
+        <button class="quick-action-btn" onclick="navigateTo('pcap')">
+          <i class="bi bi-file-earmark-binary-fill text-primary"></i>
+          <div><strong>Upload PCAP</strong><small>Analyse capture file</small></div>
+          <i class="bi bi-chevron-right ms-auto"></i>
+        </button>
+        <button class="quick-action-btn" onclick="navigateTo('predictions')">
+          <i class="bi bi-activity text-info"></i>
+          <div><strong>Predictions</strong><small>View risk feed</small></div>
+          <i class="bi bi-chevron-right ms-auto"></i>
+        </button>
+        <button class="quick-action-btn" onclick="navigateTo('users')">
+          <i class="bi bi-people-fill text-danger"></i>
+          <div><strong>Manage Users</strong><small>Roles, activate, delete</small></div>
+          <i class="bi bi-chevron-right ms-auto"></i>
+        </button>
+        <button class="quick-action-btn" onclick="navigateTo('requests')">
+          <i class="bi bi-person-up text-warning"></i>
+          <div><strong>Access Requests</strong><small>Review pending roles</small></div>
+          <i class="bi bi-chevron-right ms-auto"></i>
+        </button>
+        <button class="quick-action-btn" onclick="navigateTo('health')">
+          <i class="bi bi-heart-pulse-fill text-success"></i>
+          <div><strong>System Health</strong><small>API & DB status</small></div>
+          <i class="bi bi-chevron-right ms-auto"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 2 -->
+  <div class="col-lg-4">
+    <div class="info-card h-100">
+      <div class="info-card-header">
+        <i class="bi bi-heart-pulse-fill me-2 text-success"></i>System Health
+        <a href="#" class="card-link ms-auto"
+           onclick="navigateTo('health');return false;">
+          Full Details <i class="bi bi-arrow-right"></i>
+        </a>
       </div>
       <div class="info-card-body" id="healthBody">${skeletons}</div>
     </div>
   </div>
   <div class="col-lg-4">
-    <div class="info-card">
+    <div class="info-card h-100">
       <div class="info-card-header">
-        <i class="bi bi-person-fill text-primary"></i> My Profile
-        <a href="#" class="card-link ms-auto" onclick="navigateTo('account');return false;">
-          Edit <i class="bi bi-pencil"></i></a>
+        <i class="bi bi-person-fill me-2 text-primary"></i>My Profile
+        <a href="#" class="card-link ms-auto"
+           onclick="navigateTo('account');return false;">
+          Edit <i class="bi bi-pencil"></i>
+        </a>
       </div>
       <div class="info-card-body" id="profileBody">${skeletons}</div>
     </div>
   </div>
   <div class="col-lg-4">
-    <div class="info-card">
-      <div class="info-card-header"><i class="bi bi-lightning-fill text-warning"></i> Quick Actions</div>
-      <div class="info-card-body">
-        <button class="quick-action-btn" onclick="navigateTo('users')">
-          <i class="bi bi-people-fill text-danger"></i>
-          <div><strong>Manage Users</strong><small>Roles, deactivate, delete</small></div>
-          <i class="bi bi-chevron-right ms-auto"></i>
-        </button>
-        <button class="quick-action-btn" onclick="navigateTo('requests')">
-          <i class="bi bi-person-up text-warning"></i>
-          <div><strong>Access Requests</strong><small>Review pending role upgrades</small></div>
-          <i class="bi bi-chevron-right ms-auto"></i>
-        </button>
-        <button class="quick-action-btn" onclick="navigateTo('account')">
-          <i class="bi bi-person-gear text-info"></i>
-          <div><strong>My Account</strong><small>Edit profile & password</small></div>
-          <i class="bi bi-chevron-right ms-auto"></i>
-        </button>
-      </div>
-    </div>
-  </div>
-  <div class="col-12 mt-1">
-    <div class="info-card">
+    <div class="info-card h-100">
       <div class="info-card-header">
-        <i class="bi bi-key-fill text-warning"></i> Your Permissions — Admin (Full Access)
+        <i class="bi bi-key-fill me-2 text-warning"></i>Permissions — Admin
       </div>
       <div class="info-card-body">
         <div class="permissions-grid">${adminPerms()}</div>
@@ -274,27 +452,87 @@ function adminCards() {
   </div>`;
 }
 
+
 function analystCards() {
   return `
+  <div class="col-lg-8">
+    <div class="info-card h-100">
+      <div class="info-card-header">
+        <i class="bi bi-bar-chart-fill me-2 text-primary"></i>Security Overview
+        <span id="dash-chart-subtitle" class="ms-auto"
+              style="font-size:.74rem;color:var(--text-muted);"></span>
+      </div>
+      <div class="info-card-body">
+        <div class="dash-charts-grid">
+          <div class="dash-donut-wrap">
+            <canvas id="chartDonut"></canvas>
+            <div class="dash-donut-center">
+              <div id="chartDonutTotal"
+                   style="font-size:1.6rem;font-weight:700;color:var(--text-white);line-height:1;">—</div>
+              <div style="font-size:.62rem;color:var(--text-muted);
+                   text-transform:uppercase;letter-spacing:.5px;margin-top:3px;">Total</div>
+            </div>
+          </div>
+          <div style="height:200px;"><canvas id="chartLine"></canvas></div>
+        </div>
+        <div id="chartLegend" class="dash-legend"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="info-card h-100">
+      <div class="info-card-header">
+        <i class="bi bi-lightning-fill me-2 text-warning"></i>Quick Actions
+      </div>
+      <div class="info-card-body p-0">
+        <button class="quick-action-btn" onclick="navigateTo('pcap')">
+          <i class="bi bi-file-earmark-binary-fill text-primary"></i>
+          <div><strong>Upload PCAP</strong><small>Analyse capture file</small></div>
+          <i class="bi bi-chevron-right ms-auto"></i>
+        </button>
+        <button class="quick-action-btn" onclick="navigateTo('predictions')">
+          <i class="bi bi-activity text-info"></i>
+          <div><strong>Predictions</strong><small>View risk feed</small></div>
+          <i class="bi bi-chevron-right ms-auto"></i>
+        </button>
+        <button class="quick-action-btn" onclick="navigateTo('alerts')">
+          <i class="bi bi-bell-fill text-danger"></i>
+          <div><strong>Alerts</strong><small>Active threat alerts</small></div>
+          <i class="bi bi-chevron-right ms-auto"></i>
+        </button>
+        <button class="quick-action-btn" onclick="navigateTo('account')">
+          <i class="bi bi-person-gear text-purple"></i>
+          <div><strong>My Account</strong><small>Edit profile & password</small></div>
+          <i class="bi bi-chevron-right ms-auto"></i>
+        </button>
+      </div>
+    </div>
+  </div>
   <div class="col-lg-6">
-    <div class="info-card">
-      <div class="info-card-header"><i class="bi bi-heart-pulse-fill text-success"></i> API Status</div>
+    <div class="info-card h-100">
+      <div class="info-card-header">
+        <i class="bi bi-heart-pulse-fill me-2 text-success"></i>API Status
+      </div>
       <div class="info-card-body" id="healthBody">${skeletons}</div>
     </div>
   </div>
   <div class="col-lg-6">
-    <div class="info-card">
+    <div class="info-card h-100">
       <div class="info-card-header">
-        <i class="bi bi-person-badge-fill" style="color:var(--accent-blue);"></i> My Profile
-        <a href="#" class="card-link ms-auto" onclick="navigateTo('account');return false;">
-          Edit <i class="bi bi-pencil"></i></a>
+        <i class="bi bi-person-badge-fill me-2" style="color:var(--accent-blue)"></i>My Profile
+        <a href="#" class="card-link ms-auto"
+           onclick="navigateTo('account');return false;">
+          Edit <i class="bi bi-pencil"></i>
+        </a>
       </div>
       <div class="info-card-body" id="profileBody">${skeletons}</div>
     </div>
   </div>
   <div class="col-12">
     <div class="info-card">
-      <div class="info-card-header"><i class="bi bi-key-fill text-primary"></i> Your Permissions — Analyst</div>
+      <div class="info-card-header">
+        <i class="bi bi-key-fill me-2 text-primary"></i>Permissions — Analyst
+      </div>
       <div class="info-card-body">
         <div class="permissions-grid">${analystPerms()}</div>
       </div>
@@ -302,34 +540,61 @@ function analystCards() {
   </div>`;
 }
 
+
 function viewerCards() {
   return `
   <div class="col-lg-6">
-    <div class="info-card">
-      <div class="info-card-header"><i class="bi bi-heart-pulse-fill text-success"></i> System Status</div>
+    <div class="info-card h-100">
+      <div class="info-card-header">
+        <i class="bi bi-heart-pulse-fill me-2 text-success"></i>System Status
+      </div>
       <div class="info-card-body" id="healthBody">${skeletons}</div>
     </div>
   </div>
   <div class="col-lg-6">
-    <div class="info-card">
+    <div class="info-card h-100">
       <div class="info-card-header">
-        <i class="bi bi-eye-fill text-success"></i> My Profile
-        <a href="#" class="card-link ms-auto" onclick="navigateTo('account');return false;">
-          Edit <i class="bi bi-pencil"></i></a>
+        <i class="bi bi-eye-fill me-2 text-success"></i>My Profile
+        <a href="#" class="card-link ms-auto"
+           onclick="navigateTo('account');return false;">
+          Edit <i class="bi bi-pencil"></i>
+        </a>
       </div>
       <div class="info-card-body" id="profileBody">${skeletons}</div>
     </div>
   </div>
   <div class="col-12">
-    <div class="viewer-notice">
-      <i class="bi bi-eye-fill"></i>
-      <div>
-        <strong>Read-Only Access</strong>
-        <p style="margin-top:6px;">Use <strong>My Account → Request Access</strong> to request elevated permissions.</p>
+    <div class="info-card">
+      <div class="info-card-header">
+        <i class="bi bi-bar-chart-fill me-2 text-info"></i>Security Reports
+        <a href="#" class="card-link ms-auto"
+           onclick="navigateTo('reports');return false;">
+          View Reports <i class="bi bi-arrow-right"></i>
+        </a>
+      </div>
+      <div class="info-card-body">
+        <div class="viewer-notice">
+          <i class="bi bi-eye-fill"></i>
+          <div><strong>Read-Only Access</strong>
+          <p>View detection summaries and security reports.
+             Use <strong>My Account → Request Access</strong>
+             to request elevated permissions.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12">
+    <div class="info-card">
+      <div class="info-card-header">
+        <i class="bi bi-key-fill me-2 text-primary"></i>Permissions — Viewer
+      </div>
+      <div class="info-card-body">
+        <div class="permissions-grid">${viewerPerms()}</div>
       </div>
     </div>
   </div>`;
 }
+
 
 // ── Permissions ───────────────────────────────────────────────────────────
 function perm(icon, label, allowed) {
@@ -339,30 +604,107 @@ function perm(icon, label, allowed) {
     <span>${label}</span>
   </div>`;
 }
+// ── Permissions helpers ────────────────────────────────────────────────────────
+function _permRow(ok, text) {
+  return `<div class="perm-item ${ok ? "allowed" : "denied"}">
+    <i class="bi ${ok ? "bi-check-circle-fill" : "bi-x-circle-fill"}"></i>
+    <span>${text}</span>
+  </div>`;
+}
 function adminPerms() {
   return [
-    perm("bi-people-fill",           "Manage Users",    true),
-    perm("bi-cpu-fill",              "Switch ML Model", true),
-    perm("bi-file-earmark-binary-fill","Upload PCAP",   true),
-    perm("bi-broadcast",             "Live Capture",    true),
-    perm("bi-bell-fill",             "Manage Alerts",   true),
-    perm("bi-activity",              "View Predictions",true),
-    perm("bi-person-up",             "Role Requests",   true),
-    perm("bi-gear-fill",             "System Settings", true),
-  ].join("");
+    [true,  "Upload & analyse PCAP files"],
+    [true,  "View ML predictions feed"],
+    [true,  "Manage users & roles"],
+    [true,  "Approve / reject access requests"],
+    [true,  "Reset user passwords"],
+    [true,  "View system health"],
+    [true,  "View security reports"],
+  ].map(([ok, t]) => _permRow(ok, t)).join("");
 }
 function analystPerms() {
   return [
-    perm("bi-people-fill",           "Manage Users",    false),
-    perm("bi-cpu-fill",              "Switch ML Model", true),
-    perm("bi-file-earmark-binary-fill","Upload PCAP",   true),
-    perm("bi-broadcast",             "Live Capture",    true),
-    perm("bi-bell-fill",             "Acknowledge Alerts",true),
-    perm("bi-activity",              "View Predictions",true),
-    perm("bi-person-up",             "Role Requests",   false),
-    perm("bi-gear-fill",             "System Settings", false),
-  ].join("");
+    [true,  "Upload & analyse PCAP files"],
+    [true,  "View ML predictions feed"],
+    [false, "Manage users & roles"],
+    [false, "Approve / reject access requests"],
+    [false, "Reset user passwords"],
+    [true,  "View system health"],
+    [true,  "View security reports"],
+  ].map(([ok, t]) => _permRow(ok, t)).join("");
 }
+function viewerPerms() {
+  return [
+    [false, "Upload & analyse PCAP files"],
+    [false, "View ML predictions feed"],
+    [false, "Manage users & roles"],
+    [false, "Approve / reject access requests"],
+    [false, "Reset user passwords"],
+    [false, "View system health"],
+    [true,  "View security reports"],
+  ].map(([ok, t]) => _permRow(ok, t)).join("");
+}
+
+// ── Health mini-card ───────────────────────────────────────────────────────────
+async function _loadHealthIntoCard() {
+  const el = document.getElementById("healthBody");
+  if (!el) return;
+  const h = await API.health();
+  if (!h) {
+    el.innerHTML = `<div class="health-row">
+      <span class="health-dot red"></span><span>Backend unreachable</span>
+    </div>`;
+    return;
+  }
+  el.innerHTML = `
+    <div class="health-row">
+      <span class="health-dot green"></span><span>API</span>
+      <span class="ms-auto" style="color:#22c55e;font-size:.75rem;font-weight:600;">Online</span>
+    </div>
+    <div class="health-row">
+      <span class="health-dot green"></span><span>Version</span>
+      <span class="ms-auto" style="color:var(--text-muted);font-size:.75rem;">${h.version || "2.0.0"}</span>
+    </div>
+    <div class="health-row">
+      <span class="health-dot green"></span><span>Auth</span>
+      <span class="ms-auto" style="color:var(--text-muted);font-size:.75rem;">JWT / bcrypt</span>
+    </div>`;
+}
+
+// ── Profile mini-card ──────────────────────────────────────────────────────────
+function _loadProfileIntoCard() {
+  const el = document.getElementById("profileBody");
+  if (!el || !currentUser) return;
+  const roleColors = { admin:"#ef4444", analyst:"#3b82f6", viewer:"#22c55e" };
+  const clr = roleColors[currentUser.role] || "#94a3b8";
+  el.innerHTML = `
+    <div class="health-row">
+      <span style="color:var(--text-muted);font-size:.75rem;">Username</span>
+      <span class="ms-auto" style="font-weight:600;color:var(--text-white);font-size:.82rem;">
+        ${currentUser.username}</span>
+    </div>
+    <div class="health-row">
+      <span style="color:var(--text-muted);font-size:.75rem;">Email</span>
+      <span class="ms-auto" style="color:var(--text-muted);font-size:.75rem;
+            max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+            title="${currentUser.email}">${currentUser.email}</span>
+    </div>
+    <div class="health-row">
+      <span style="color:var(--text-muted);font-size:.75rem;">Role</span>
+      <span class="ms-auto" style="font-weight:700;font-size:.75rem;color:${clr};
+            text-transform:capitalize;">${currentUser.role}</span>
+    </div>
+    <div class="health-row">
+      <span style="color:var(--text-muted);font-size:.75rem;">Last login</span>
+      <span class="ms-auto" style="color:var(--text-muted);font-size:.72rem;">
+        ${currentUser.last_login
+          ? new Date(currentUser.last_login).toLocaleDateString("en-IN",
+              { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" })
+          : "First session"}
+      </span>
+    </div>`;
+}
+
 
 // ── API HEALTH ────────────────────────────────────────────────────────────
 async function checkAPIHealth() {
@@ -437,6 +779,7 @@ function navigateTo(section, cfg) {
   if (section === "account")  initAccountSection(currentUser);
   if (section === "pcap")     { if (typeof loadPcapHistory === "function") loadPcapHistory(); }
   if (section === 'predictions') { if (typeof loadPredictions === 'function') loadPredictions(); }
+  if (section === 'reports') { if (typeof loadReports === 'function') loadReports(); }
 }
 
 // ── USERS TABLE ───────────────────────────────────────────────────────────

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from datetime import datetime
+from datetime import datetime, timedelta
 from pydantic import BaseModel
 from typing import Optional
 
@@ -34,11 +34,11 @@ def seed_default_admin(db):
     if existing:
         return
     admin = User(
-        username         = DEFAULT_ADMIN["username"],
-        email            = DEFAULT_ADMIN["email"],
-        hashed_password  = hash_password(DEFAULT_ADMIN["password"]),
-        role             = DEFAULT_ADMIN["role"],
-        is_active        = True,
+        username        = DEFAULT_ADMIN["username"],
+        email           = DEFAULT_ADMIN["email"],
+        hashed_password = hash_password(DEFAULT_ADMIN["password"]),
+        role            = DEFAULT_ADMIN["role"],
+        is_active       = True,
     )
     db.add(admin)
     db.commit()
@@ -51,14 +51,11 @@ def seed_default_admin(db):
     print(" ⚠️  Change this password after first login!")
     print("=" * 50 + "\n")
 
+
 # ══════════════════════════════════════════════════════════════════════════════
-# DB MIGRATION — adds new columns to existing pcap_analysis table
+# DB MIGRATION — safely adds new columns to existing pcap_analysis table
 # ══════════════════════════════════════════════════════════════════════════════
 def _migrate_pcap_columns(engine):
-    """
-    Safely adds new columns to pcap_analysis without dropping existing data.
-    Silently skips any column that already exists (works on SQLite + PostgreSQL).
-    """
     new_cols = [
         ("user_id",     "INTEGER"),
         ("risk_score",  "FLOAT"),
@@ -77,6 +74,7 @@ def _migrate_pcap_columns(engine):
             except Exception:
                 pass  # Column already exists — safe to ignore
 
+
 # ══════════════════════════════════════════════════════════════════════════════
 # LIFESPAN
 # ══════════════════════════════════════════════════════════════════════════════
@@ -86,12 +84,10 @@ async def lifespan(app: FastAPI):
         verify_connection()
         create_tables()
 
-        # Ensure PCAP analysis table exists
         from backend.database import engine
         PcapAnalysis.__table__.create(bind=engine, checkfirst=True)
         print("[DB] ✅ Table ensured: pcap_analysis")
 
-        # Migrate new columns onto existing table (safe no-op if already present)
         _migrate_pcap_columns(engine)
 
         db = next(get_db())
@@ -106,6 +102,7 @@ async def lifespan(app: FastAPI):
         print("[STARTUP] API will continue but DB features may not work.")
     yield
 
+
 # ══════════════════════════════════════════════════════════════════════════════
 # APP
 # ══════════════════════════════════════════════════════════════════════════════
@@ -117,6 +114,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SCHEMAS
@@ -193,7 +191,8 @@ class PcapAnalysisResponse(BaseModel):
     message:   str
     result:    PcapResultOut
 
-# ── Helper ─────────────────────────────────────────────────────────────────────
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
 def user_dict(u):
     return {
         "id":           u.id,
@@ -202,9 +201,10 @@ def user_dict(u):
         "display_name": u.display_name,
         "role":         u.role,
         "is_active":    u.is_active,
-        "created_at":   str(u.created_at),
+        "created_at":   str(u.created_at) if u.created_at else None,
         "last_login":   str(u.last_login) if u.last_login else None,
     }
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ROOT / HEALTH
@@ -216,6 +216,7 @@ async def root():
 @app.get("/health", tags=["System"])
 async def health():
     return {"status": "ok", "version": "2.0.0", "message": "IDS-ML v2.0 running!"}
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # AUTH
@@ -254,11 +255,12 @@ async def register(data: PublicRegister, db: Session = Depends(get_db)):
     if len(data.password) < 6:
         raise HTTPException(400, "Password must be at least 6 characters")
     u = User(
-        username        = data.username,
-        email           = data.email,
-        hashed_password = hash_password(data.password),
-        role            = "viewer",
-        is_active       = True,
+        username=data.username,
+        email=data.email,
+        hashed_password=hash_password(data.password),
+        role=data.role,
+        is_active=True,
+        created_at=datetime.utcnow(),
     )
     db.add(u); db.commit(); db.refresh(u)
     return {
@@ -270,6 +272,7 @@ async def register(data: PublicRegister, db: Session = Depends(get_db)):
 @app.get("/me", response_model=UserOut, tags=["Auth"])
 async def get_me(me: User = Depends(get_current_user)):
     return me
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SELF — every logged-in user
@@ -359,6 +362,7 @@ async def my_role_request(
         "reviewed_at":    str(req.reviewed_at) if req.reviewed_at else None,
     }}
 
+
 # ══════════════════════════════════════════════════════════════════════════════
 # FORGOT PASSWORD (public)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -385,6 +389,7 @@ async def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get
     )
     db.add(req); db.commit(); db.refresh(req)
     return {"message": "Reset request submitted. An administrator will set a new temporary password for you."}
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ADMIN — PASSWORD RESET MANAGEMENT
@@ -442,6 +447,7 @@ async def dismiss_reset(
     db.commit()
     return {"message": "Request dismissed."}
 
+
 # ══════════════════════════════════════════════════════════════════════════════
 # ADMIN — USER MANAGEMENT
 # ══════════════════════════════════════════════════════════════════════════════
@@ -465,11 +471,12 @@ async def admin_create(
     if db.query(User).filter(User.email == data.email).first():
         raise HTTPException(400, "Email already registered")
     u = User(
-        username        = data.username,
-        email           = data.email,
-        hashed_password = hash_password(data.password),
-        role            = data.role,
-        is_active       = True,
+        username=data.username,
+        email=data.email,
+        hashed_password=hash_password(data.password),
+        role=data.role,
+        is_active=True,
+        created_at=datetime.utcnow(),
     )
     db.add(u); db.commit(); db.refresh(u)
     return {"message": f"User '{u.username}' created as {u.role}", "id": u.id}
@@ -484,7 +491,7 @@ async def admin_change_role(
     if data.role not in ("admin", "analyst", "viewer"):
         raise HTTPException(400, "Invalid role")
     u = db.query(User).filter(User.id == uid).first()
-    if not u:      raise HTTPException(404, "User not found")
+    if not u:         raise HTTPException(404, "User not found")
     if u.id == me.id: raise HTTPException(400, "Cannot change your own role")
     old = u.role; u.role = data.role; db.commit()
     return {"message": f"'{u.username}' role: {old} → {data.role}"}
@@ -537,6 +544,7 @@ async def admin_reset_pwd(
     if not u: raise HTTPException(404, "User not found")
     u.hashed_password = hash_password(data.new_password); db.commit()
     return {"message": f"Password reset for '{u.username}'"}
+
 
 # ── Admin: Role Requests ───────────────────────────────────────────────────────
 @app.get("/admin/role-requests", tags=["Admin"])
@@ -594,6 +602,7 @@ async def reject_request(
     db.commit()
     return {"message": f"Rejected access request from '{req.username}'"}
 
+
 # ══════════════════════════════════════════════════════════════════════════════
 # PCAP ANALYSIS
 # ══════════════════════════════════════════════════════════════════════════════
@@ -632,6 +641,118 @@ async def pcap_history(
         .all()
     )
     return [_orm_to_dict(r) for r in rows]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DASHBOARD STATS  (all authenticated roles)
+# ══════════════════════════════════════════════════════════════════════════════
+@app.get("/dashboard/stats", tags=["Dashboard"])
+async def dashboard_stats(
+    db:    Session = Depends(get_db),
+    _user: User    = Depends(get_current_user),
+):
+    rows  = db.query(PcapAnalysis).all()
+    total = len(rows)
+
+    by_label = {"Critical": 0, "High": 0, "Medium": 0, "Low": 0}
+    for r in rows:
+        lbl = r.risk_label or "Low"
+        if lbl in by_label:
+            by_label[lbl] += 1
+
+    attacks = by_label["Critical"] + by_label["High"]
+    normal  = by_label["Medium"]   + by_label["Low"]
+
+    # Last 7 days breakdown
+    today  = datetime.utcnow().date()
+    last_7 = []
+    for i in range(6, -1, -1):
+        d   = today - timedelta(days=i)
+        dr  = [r for r in rows if r.created_at and r.created_at.date() == d]
+        da  = sum(1 for r in dr if r.risk_label in ("Critical", "High"))
+        last_7.append({"date": str(d), "total": len(dr), "attacks": da})
+
+    # Top attack types
+    atk = {}
+    for r in rows:
+        if r.attack_type:
+            atk[r.attack_type] = atk.get(r.attack_type, 0) + 1
+    top_attacks = sorted(atk.items(), key=lambda x: x[1], reverse=True)[:5]
+
+    return {
+        "total":          total,
+        "attacks":        attacks,
+        "normal":         normal,
+        "by_label":       by_label,
+        "top_attacks":    [{"type": t, "count": c} for t, c in top_attacks],
+        "last_7_days":    last_7,
+        "model":          "Random Forest IDS",
+        "model_accuracy": "85.9%",
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# REPORTS SUMMARY  (all authenticated roles — viewer safe)
+# ══════════════════════════════════════════════════════════════════════════════
+@app.get("/reports/summary", tags=["Reports"])
+async def reports_summary(
+    db:    Session = Depends(get_db),
+    _user: User    = Depends(get_current_user),
+):
+    rows  = db.query(PcapAnalysis).order_by(PcapAnalysis.created_at.desc()).all()
+    total = len(rows)
+
+    by_label = {"Critical": 0, "High": 0, "Medium": 0, "Low": 0}
+    for r in rows:
+        lbl = r.risk_label or "Low"
+        if lbl in by_label:
+            by_label[lbl] += 1
+
+    threat_count = by_label["Critical"] + by_label["High"]
+    normal_count = by_label["Medium"]   + by_label["Low"]
+    avg_risk     = round(
+        sum((r.risk_score or 0) for r in rows) / total, 3
+    ) if total else 0.0
+
+    # Top attack types
+    atk = {}
+    for r in rows:
+        if r.attack_type:
+            atk[r.attack_type] = atk.get(r.attack_type, 0) + 1
+    top_attacks = sorted(atk.items(), key=lambda x: x[1], reverse=True)[:5]
+
+    # Top protocols
+    proto = {}
+    for r in rows:
+        for p in (r.top_protocols or "").split(","):
+            p = p.strip()
+            if p:
+                proto[p] = proto.get(p, 0) + 1
+    top_protocols = sorted(proto.items(), key=lambda x: x[1], reverse=True)[:5]
+
+    # Last 7 days
+    today  = datetime.utcnow().date()
+    weekly = []
+    for i in range(6, -1, -1):
+        d   = today - timedelta(days=i)
+        dr  = [r for r in rows if r.created_at and r.created_at.date() == d]
+        dt_ = sum(1 for r in dr if r.risk_label in ("Critical", "High"))
+        weekly.append({"date": str(d), "total": len(dr), "threats": dt_})
+
+    return {
+        "total_analyses":   total,
+        "threat_count":     threat_count,
+        "normal_count":     normal_count,
+        "avg_risk_score":   avg_risk,
+        "by_label":         by_label,
+        "top_attack_types": [{"type": t, "count": c} for t, c in top_attacks],
+        "top_protocols":    [{"protocol": p, "count": c} for p, c in top_protocols],
+        "weekly":           weekly,
+        "model_name":       "Random Forest IDS",
+        "model_accuracy":   "85.9%",
+        "recent":           [_orm_to_dict(r) for r in rows[:10]],
+    }
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 if __name__ == "__main__":
