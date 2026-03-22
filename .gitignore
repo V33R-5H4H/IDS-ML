@@ -119,3 +119,5 @@ package-lock.json
 /docs/New folder/
 docs/walkthrough.md
 data/raw/*
+/scripts/
+/.kiro/
