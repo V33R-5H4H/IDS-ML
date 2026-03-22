@@ -5,11 +5,26 @@ Collects and computes analytics from PCAP analyses, live captures, and ML predic
 """
 
 import logging
+import csv
+import io
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 from collections import Counter, defaultdict
 
+try:
+    from prometheus_client import Counter as PromCounter, Gauge as PromGauge, Histogram
+except ImportError:
+    PromCounter = PromGauge = Histogram = None
+
 log = logging.getLogger(__name__)
+
+# Prometheus Metrics
+if PromCounter:
+    PREDICTIONS_TOTAL = PromCounter('ids_predictions_total', 'Total number of predictions', ['source', 'label'])
+    ATTACK_GAUGE = PromGauge('ids_active_attacks', 'Current number of active attack predictions in the window')
+    CONFIDENCE_HISTOGRAM = Histogram('ids_prediction_confidence', 'Confidence scores of predictions')
+else:
+    PREDICTIONS_TOTAL = ATTACK_GAUGE = CONFIDENCE_HISTOGRAM = None
 
 
 class AnalyticsEngine:
@@ -30,6 +45,14 @@ class AnalyticsEngine:
             "protocol": protocol,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
+
+        if PREDICTIONS_TOTAL:
+            PREDICTIONS_TOTAL.labels(source=source, label=label).inc()
+            CONFIDENCE_HISTOGRAM.observe(confidence)
+            if label != "normal":
+                ATTACK_GAUGE.inc()
+            else:
+                ATTACK_GAUGE.dec()
         # Keep last 10k entries
         if len(self._prediction_log) > 10000:
             self._prediction_log = self._prediction_log[-10000:]
@@ -162,6 +185,18 @@ class AnalyticsEngine:
             "source_comparison": self.get_source_comparison(),
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
+
+    def export_csv(self) -> str:
+        """Export the analytics prediction log to CSV string format."""
+        if not self._prediction_log:
+            return "timestamp,label,confidence,source,src_ip,dst_ip,protocol\n"
+        
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=["timestamp", "label", "confidence", "source", "src_ip", "dst_ip", "protocol"])
+        writer.writeheader()
+        for p in self._prediction_log:
+            writer.writerow(p)
+        return output.getvalue()
 
 
 # ── Singleton ────────────────────────────────────────────────────────────────

@@ -13,6 +13,11 @@ from datetime import datetime, timedelta
 from pydantic import BaseModel
 from typing import Optional
 
+try:
+    from prometheus_client import make_asgi_app
+except ImportError:
+    make_asgi_app = None
+
 from backend.database import create_tables, get_db, verify_connection
 from backend.analytics import analytics_engine
 from backend.models import User, RoleRequest, PasswordResetRequest
@@ -1056,8 +1061,26 @@ async def top_talkers(
 async def model_performance(
     _user: User = Depends(require_roles("admin", "analyst")),
 ):
-    """Get model performance metrics."""
     return analytics_engine.get_model_performance()
+
+
+@app.get("/analytics/export", tags=["Analytics"])
+async def export_analytics(current_user: User = Depends(get_current_user)):
+    """Export full prediction history as CSV."""
+    csv_data = analytics_engine.export_csv()
+    return StreamingResponse(
+        io.StringIO(csv_data),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=ids_predictions_export.csv"}
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PROMETHEUS DASHBOARD
+# ══════════════════════════════════════════════════════════════════════════════
+if make_asgi_app:
+    metrics_app = make_asgi_app()
+    app.mount("/metrics", metrics_app)
 
 
 @app.websocket("/ws/live-capture")
