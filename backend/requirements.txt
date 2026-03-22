@@ -32,3 +32,9 @@ psycopg2-binary==2.9.9
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 alembic==1.13.1
+
+# Extended ML Models & Ensembles
+tensorflow>=2.15.0
+xgboost>=2.0.3
+lightgbm>=4.3.0
+prometheus-client>=0.20.0
