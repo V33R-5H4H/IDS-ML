@@ -121,3 +121,4 @@ docs/walkthrough.md
 data/raw/*
 /scripts/
 /.kiro/
+/docs/

@@ -270,7 +270,7 @@ async def register(data: PublicRegister, db: Session = Depends(get_db)):
         username=data.username,
         email=data.email,
         hashed_password=hash_password(data.password),
-        role=data.role,
+        role="viewer",
         is_active=True,
         created_at=datetime.utcnow(),
     )
