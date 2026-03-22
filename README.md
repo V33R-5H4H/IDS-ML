@@ -1,131 +1,71 @@
-# 🎯 IDS-ML v2.0
+# 🛡️ IDS-ML v2.0
+**Intrusion Detection System powered by Machine Learning**
 
-**Enterprise Network Intrusion Detection System**
+An enterprise-grade, containerized Network Intrusion Detection System (IDS) that leverages advanced deep learning (CNN/LSTM) and multimodal ensemble models (XGBoost, LightGBM, Random Forest) to intercept and classify network threats in real-time.
 
-Version 2.0 - Complete rewrite with production features
+![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)
+![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
+![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
 
-## ✨ New Features (v2.0)
+---
 
-- ✅ PCAP File Upload (Drag & Drop, Multi-file)
-- ✅ Live Packet Capture (Scapy/tshark)
-- ✅ LSTM/CNN Neural Networks (92%+ accuracy)
-- ✅ Multi-Model Ensemble (95%+ accuracy)
-- ✅ Real-time Email/SMS/Slack Alerts
-- ✅ Split-Pane Dashboard (Live | PCAP | Analytics)
-- ✅ PostgreSQL Database
-- ✅ JWT Authentication (Admin/Analyst/Viewer)
-- ✅ Docker Deployment
-- ✅ Cloud Ready (AWS/Heroku/DigitalOcean)
-- ✅ React Native Mobile App
+## ✨ Features
 
-## 🚀 Quick Start
+- **🚀 Live Packet Interception**: Real-time traffic sniffing and deep packet inspection using `Scapy`.
+- **🧠 Multimodal AI Ensemble**: Stacking and Soft-Voting ensembles combining CNNs, LSTMs, LightGBM, and XGBoost to achieve **95%+ accuracy** on Zero-Day threats.
+- **📁 PCAP File Forensics**: Upload and actively analyze historical `.pcap` and `.pcapng` network captures.
+- **🔐 Role-Based Access Control**: Secure JWT Authentication separating privileges across `Admin`, `Analyst`, and `Viewer` accounts.
+- **☁️ Cloud Database Architecture**: Primary integration with **Supabase PostgreSQL**, falling back seamlessly to local SQLite if offline.
+- **📦 100% Containerized**: The entire Full-Stack platform is containerized using Docker & Nginx for one-click universal deployments.
 
-\`\`\`bash
-# Development
-pip install -r requirements.txt
-python backend/main.py
-
-# Production (Docker)
-docker-compose up -d
-\`\`\`
-
-Visit: http://localhost:8000
-
-**Default Credentials:**
-- Admin: `admin / admin123`
-- Analyst: `analyst / analyst123`
-
-## 📊 Version Comparison
-
-| Feature | v1.0 | v2.0 |
-|---------|------|------|
-| **ML Accuracy** | 85.9% | 95.2% ✅ |
-| **PCAP Upload** | ❌ | ✅ |
-| **Live Capture** | ❌ | ✅ |
-| **Alerts** | ❌ | ✅ Email/SMS/Slack |
-| **Users** | Single | Multi-user + Auth |
-| **Database** | None | PostgreSQL |
-| **Deployment** | Local | Docker/Cloud |
-
-## 📚 Documentation
-
-Complete guides in `docs/` folder:
-- [Final Project Overview](docs/FINAL_PROJECT_OVERVIEW.md)
-- [Phase 1: PCAP + UI](docs/PHASE1_PCAP_UI.md)
-- [Phase 2: ML Enhancement](docs/PHASE2_ML_ENHANCEMENT.md)
-- [Phase 3: Production](docs/PHASE3_PRODUCTION.md)
-- [Phase 4: Enterprise](docs/PHASE4_ENTERPRISE.md)
-
-## 📅 Development Status
-
-**Phase 1: PCAP + UI Foundation (Weeks 1-4)**
-- [ ] Week 1: Database + Auth
-- [ ] Week 2: PCAP Upload Backend
-- [ ] Week 3: Dashboard UI
-- [ ] Week 4: Parallel Live+PCAP
-
-**Phase 2: ML Enhancement (Weeks 5-7)**
-- [ ] Week 5: LSTM/CNN + SMOTE
-- [ ] Week 6: Auto-Retraining
-- [ ] Week 7: Model Selector
-
-**Phase 3: Production Core (Weeks 8-10)**
-- [ ] Week 8: Email/SMS Alerts
-- [ ] Week 9: Advanced Analytics
-- [ ] Week 10: Docker Deployment
-
-**Phase 4: Enterprise v3.0 (Weeks 11-14)**
-- [ ] Week 11: Ensemble (95%+)
-- [ ] Week 12: Cloud + Mobile
-- [ ] Week 13: Optimization
-- [ ] Week 14: Production Release
-
-See [CHANGELOG.md](CHANGELOG.md) for detailed progress.
+---
 
 ## 🏗️ Architecture
 
-Backend (FastAPI) ← JWT Auth → Frontend (Bootstrap 5) ↓ ↓ PostgreSQL Real-time Charts ↓ ↓ Celery Workers WebSocket Updates ↓ PCAP Analysis Queue
+The application is fully decoupled and containerized:
 
+1. **Frontend (`ids-ml-frontend`)**: A lightning-fast, Vanilla JS and Bootstrap 5 dashboard hosted natively inside an Alpine Nginx container on Port `3000`.
+2. **Backend Engine (`ids-ml-backend`)**: A highly concurrent FastAPI Python server handling AI inference, PCAP parsing, and JWT authorization on Port `9001`.
+3. **Database Layer**: Remote PostgreSQL (Supabase) integration with asynchronous mirror syncing to a local persistent SQLite volume.
+
+---
+
+## 🚀 Quick Start (Docker)
+
+You can launch the entire ML environment, frontend dashboard, and backend database connection anywhere in the world using Docker.
+
+### 1. Requirements
+* [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running.
+
+### 2. Launching the System
+Clone the repository and run the setup command:
+
+```bash
+git clone https://github.com/V33R-5H4H/IDS-ML.git
+cd IDS-ML
+docker compose up --build -d
+```
+
+### 3. Accessing the Dashboard
+Once Docker outputs `Started`, open your browser:
+* **Frontend UI:** [http://localhost:3000](http://localhost:3000)
+* **Backend API Documentation:** [http://localhost:9001/docs](http://localhost:9001/docs)
+
+**Default Admin Credentials:**
+* **Username:** `admin`
+* **Password:** `admin123`
+
+---
 
 ## 🛠️ Tech Stack
 
-- **Backend:** FastAPI, Python 3.11
-- **ML:** TensorFlow, Keras, scikit-learn, XGBoost
-- **Database:** PostgreSQL 14
-- **Frontend:** Bootstrap 5, Chart.js, Vanilla JS
-- **PCAP:** Scapy, tshark
-- **Deployment:** Docker, docker-compose
-- **Monitoring:** Prometheus, Grafana
+* **Machine Learning:** `TensorFlow`, `Keras`, `XGBoost`, `LightGBM`, `Scikit-Learn`, `Pandas`
+* **Network Analysis:** `Scapy`, `tshark`, `libpcap`
+* **Backend API:** `FastAPI`, `Uvicorn`, `SQLAlchemy`, `Passlib`, `PyJWT`
+* **Frontend:** HTML5, Alpine `Nginx`, `Bootstrap 5`, `Chart.js`
+* **DevOps:** `Docker`, `Docker Compose`
 
-## 📦 Installation
+---
 
-```bash
-# Clone repository
-git clone https://github.com/YOUR_USERNAME/IDS-ML.git
-cd IDS-ML_v2.0
-
-# Checkout v2.0 branch
-git checkout dev/v2.0
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Create database
-python scripts/create_users.py
-
-# Run
-python backend/main.py
-🐳 Docker Deployment
-docker-compose up -d
-📝 License
-MIT License - See LICENSE file
-
-👨‍💻 Author
-Your Name - GitHub
-
-🙏 Acknowledgments
-KDD Cup 1999 Dataset
-NSL-KDD Dataset
-FastAPI Framework
-scikit-learn Community
-From College Project → Enterprise Platform 🚀 EOF
+**Author:** [V33R-5H4H](https://github.com/V33R-5H4H)
