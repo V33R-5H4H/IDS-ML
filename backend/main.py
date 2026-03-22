@@ -23,6 +23,7 @@ from backend.auth import (
 from backend.pcap_analyzer import run_analysis, _orm_to_dict
 from backend.live_capture import capture_manager, get_interfaces as _get_interfaces
 from backend.model_manager import model_manager
+from backend.retraining import retraining_manager
 
 # ══════════════════════════════════════════════════════════════════════════════
 # DEFAULT ADMIN SEED
@@ -852,6 +853,169 @@ async def live_capture_export(
         )
 
 
+@app.get("/live-capture/export/pcap", tags=["Live Capture"])
+async def live_capture_export_pcap(
+    limit: int = Query(10000, ge=1, le=50000),
+    _user: User = Depends(require_roles("admin", "analyst")),
+):
+    """Export captured packets as a .pcap file."""
+    pcap_bytes = capture_manager.get_pcap_bytes(limit=limit)
+    if len(pcap_bytes) <= 24:  # Only global header, no packets
+        raise HTTPException(404, "No captured packets to export")
+
+    return StreamingResponse(
+        iter([pcap_bytes]),
+        media_type="application/vnd.tcpdump.pcap",
+        headers={"Content-Disposition": "attachment; filename=live_capture.pcap"},
+    )
+
+
+@app.get("/live-capture/analytics", tags=["Live Capture"])
+async def live_capture_analytics(
+    _user: User = Depends(require_roles("admin", "analyst")),
+):
+    """Get aggregated analytics for the current/last capture session."""
+    return capture_manager.get_analytics()
+
+
+@app.post("/live-capture/analyze", tags=["Live Capture"])
+async def live_capture_analyze(
+    limit: int = Query(1000, ge=1, le=5000),
+    _user: User = Depends(require_roles("admin", "analyst")),
+):
+    """Run ML analysis on captured packets and return predictions."""
+    import numpy as np
+
+    packets = capture_manager.get_packets(limit=limit)
+    if not packets:
+        raise HTTPException(404, "No captured packets to analyze")
+
+    # Check if model is available
+    active_model = model_manager.get_active()
+    if not active_model:
+        raise HTTPException(503, "No ML model available. Please activate a model first.")
+
+    model_meta = model_manager.get_active_metadata()
+
+    # NSL-KDD attack labels (23-class)
+    ATTACK_LABELS = [
+        "normal", "neptune", "warezclient", "ipsweep", "portsweep",
+        "teardrop", "nmap", "satan", "smurf", "pod", "back",
+        "guess_passwd", "ftp_write", "multihop", "rootkit",
+        "buffer_overflow", "imap", "warezmaster", "phf", "land",
+        "loadmodule", "spy", "perl",
+    ]
+
+    results = []
+    threat_count = 0
+    attack_breakdown = {}
+
+    for pkt in packets:
+        proto_enc = {"TCP": 0, "UDP": 1, "ICMP": 2}.get(pkt.get("protocol", ""), 0)
+        length = float(pkt.get("length", 0))
+
+        features = np.array([[
+            0.0,        # duration
+            proto_enc,  # protocol_type
+            8,          # service (default: other)
+            0,          # flag
+            length,     # src_bytes
+            0.0,        # dst_bytes
+            0.0,        # logged_in
+            1.0,        # count
+            1.0,        # srv_count
+            0.0,        # serror_rate
+            0.0,        # srv_serror_rate
+            min(80, 255),  # dst_host_srv_count
+        ]])
+
+        try:
+            proba = model_manager.predict(features)
+            pred_class = int(np.argmax(proba[0]))
+            confidence = float(np.max(proba[0]))
+            label = ATTACK_LABELS[pred_class] if pred_class < len(ATTACK_LABELS) else f"class_{pred_class}"
+        except Exception:
+            label = "error"
+            confidence = 0.0
+            pred_class = -1
+
+        is_threat = label != "normal" and pred_class != 0
+        if is_threat:
+            threat_count += 1
+            attack_breakdown[label] = attack_breakdown.get(label, 0) + 1
+
+        results.append({
+            "timestamp": pkt.get("timestamp"),
+            "src": pkt.get("src"),
+            "dst": pkt.get("dst"),
+            "protocol": pkt.get("protocol"),
+            "length": pkt.get("length"),
+            "info": pkt.get("info"),
+            "prediction": label,
+            "confidence": round(confidence, 4),
+            "is_threat": is_threat,
+        })
+
+    return {
+        "total_packets": len(results),
+        "threats_detected": threat_count,
+        "threat_rate": round(threat_count / max(len(results), 1) * 100, 1),
+        "model_used": model_meta.get("model_name", active_model),
+        "attack_breakdown": attack_breakdown,
+        "packets": results,
+    }
+
+@app.get("/analytics/combined", tags=["Analytics"])
+async def combined_analytics(
+    _user: User = Depends(require_roles("admin", "analyst")),
+    db: Session = Depends(get_db),
+):
+    """Combined analytics from both live capture and PCAP analysis history."""
+    # Live capture analytics
+    live = capture_manager.get_analytics()
+
+    # PCAP analysis stats from DB
+    from sqlalchemy import func
+    pcap_stats = {"total_analyses": 0, "total_packets": 0, "attack_types": {}}
+    try:
+        # Count PCAP analyses
+        analyses = db.execute(
+            text("SELECT COUNT(*) FROM pcap_analyses")
+        ).scalar() or 0
+        pcap_stats["total_analyses"] = analyses
+
+        # Get prediction breakdown from predictions table
+        rows = db.execute(
+            text("SELECT predicted_label, COUNT(*) as cnt FROM predictions GROUP BY predicted_label ORDER BY cnt DESC LIMIT 20")
+        ).fetchall()
+        for row in rows:
+            pcap_stats["attack_types"][row[0]] = row[1]
+            pcap_stats["total_packets"] += row[1]
+    except Exception:
+        pass
+
+    # Merge attack types
+    merged_attacks = dict(pcap_stats["attack_types"])
+    for attack, count in live.get("attack_types", {}).items():
+        merged_attacks[attack] = merged_attacks.get(attack, 0) + count
+
+    return {
+        "live": {
+            "running": live.get("running", False),
+            "total_packets": live.get("total_packets", 0),
+            "threats_detected": live.get("threats_detected", 0),
+            "protocol_breakdown": live.get("protocol_breakdown", {}),
+            "timeline": live.get("timeline", []),
+            "top_sources": live.get("top_sources", []),
+            "top_destinations": live.get("top_destinations", []),
+        },
+        "pcap": pcap_stats,
+        "merged": {
+            "total_packets": live.get("total_packets", 0) + pcap_stats["total_packets"],
+            "attack_types": merged_attacks,
+        },
+    }
+
 @app.websocket("/ws/live-capture")
 async def ws_live_capture(ws: WebSocket, token: str = Query(...)):
     """WebSocket endpoint for real-time packet feed.
@@ -930,6 +1094,79 @@ async def refresh_models(
     """Re-scan models directory for newly trained models."""
     model_manager.refresh()
     return {"message": "Models refreshed", "models": model_manager.list_models()}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# AUTO-RETRAINING PIPELINE  (admin only)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.on_event("startup")
+def start_retraining_scheduler():
+    """Start the auto-retraining scheduler on app startup."""
+    try:
+        retraining_manager.start_scheduler()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Retraining scheduler failed to start: %s", e)
+
+
+@app.on_event("shutdown")
+def stop_retraining_scheduler():
+    retraining_manager.stop_scheduler()
+
+
+@app.get("/retraining/status", tags=["Retraining"])
+async def retraining_status(
+    _user: User = Depends(require_roles("admin", "analyst")),
+):
+    """Get current auto-retraining status."""
+    return retraining_manager.get_status()
+
+
+class RetrainRequest(BaseModel):
+    model_type: str = "rf"
+
+
+@app.post("/retraining/trigger", tags=["Retraining"])
+async def trigger_retrain(
+    req: RetrainRequest = RetrainRequest(),
+    _user: User = Depends(require_roles("admin")),
+):
+    """Manually trigger model retraining (admin only)."""
+    if req.model_type:
+        retraining_manager.update_config(model_type=req.model_type)
+    import threading
+    t = threading.Thread(target=retraining_manager.retrain, kwargs={"force": True}, daemon=True)
+    t.start()
+    return {"message": "Retraining started", "model_type": req.model_type}
+
+
+@app.get("/retraining/history", tags=["Retraining"])
+async def retraining_history(
+    limit: int = Query(20, ge=1, le=100),
+    _user: User = Depends(require_roles("admin", "analyst")),
+):
+    """Get retraining history."""
+    return retraining_manager.get_history(limit=limit)
+
+
+class RetrainingConfigUpdate(BaseModel):
+    interval_hours: int = None
+    model_type: str = None
+    dataset: str = None
+    min_samples: int = None
+    enabled: bool = None
+
+
+@app.patch("/retraining/config", tags=["Retraining"])
+async def update_retraining_config(
+    config: RetrainingConfigUpdate,
+    _user: User = Depends(require_roles("admin")),
+):
+    """Update retraining configuration (admin only)."""
+    updates = {k: v for k, v in config.dict().items() if v is not None}
+    new_config = retraining_manager.update_config(**updates)
+    return {"message": "Config updated", "config": new_config}
 
 
 # ══════════════════════════════════════════════════════════════════════════════

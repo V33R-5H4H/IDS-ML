@@ -1469,3 +1469,117 @@ async function refreshModelList() {
     showToast(result.data?.detail || "Failed to refresh", "error");
   }
 }
+
+
+// ── Auto-Retraining Pipeline UI ──────────────────────────────────────────────
+async function loadRetrainingStatus() {
+  try {
+    const r = await API.request("/retraining/status");
+    if (!r || !r.ok) return;
+    const s = await r.json();
+
+    const el = (id, val) => {
+      const e = document.getElementById(id);
+      if (e) e.textContent = val;
+    };
+
+    el("retrainSchedulerStatus", s.scheduler_running
+      ? "✅ Running" : "⏸ Stopped");
+    el("retrainCurrentStatus", s.is_training
+      ? "🔄 Training in progress..." : "Idle");
+    el("retrainLastTime", s.last_retrain
+      ? new Date(s.last_retrain).toLocaleString() : "Never");
+    el("retrainNextTime", s.next_retrain || "—");
+    el("retrainInterval", `Every ${s.interval_hours}h`);
+    el("retrainModelType", (s.model_type || "rf").toUpperCase());
+    el("retrainDataset", s.dataset || "—");
+
+    // Load history
+    const hr = await API.request("/retraining/history?limit=10");
+    if (hr && hr.ok) {
+      const history = await hr.json();
+      const body = document.getElementById("retrainHistoryBody");
+      if (body && history.length > 0) {
+        body.innerHTML = history.map(h => {
+          const statusIcon = h.status === "success" ? "✅"
+            : h.status === "failed" ? "❌"
+            : h.status === "skipped" ? "⏭" : "🔄";
+          const time = h.started_at ? new Date(h.started_at).toLocaleString() : "—";
+          const acc = h.accuracy ? `${(h.accuracy * 100).toFixed(2)}%` : "—";
+          const dur = h.duration_seconds ? `${h.duration_seconds}s` : "";
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:0.85rem;">
+            <span>${statusIcon} ${h.model_type?.toUpperCase() || "?"} — ${time}</span>
+            <span style="color:${h.status === 'success' ? '#10b981' : '#64748b'}">${acc} ${dur}</span>
+          </div>`;
+        }).join("");
+      }
+    }
+  } catch (e) {
+    console.error("Failed to load retraining status:", e);
+  }
+}
+
+async function triggerRetrain() {
+  if (currentUser && currentUser.role !== "admin") {
+    showToast("Only admins can trigger retraining", "warning");
+    return;
+  }
+
+  const modelType = document.getElementById("retrainModelSelect")?.value || "rf";
+  const btn = document.getElementById("btnTriggerRetrain");
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-sm"></span> Starting...';
+  }
+
+  try {
+    const r = await API.request("/retraining/trigger", {
+      method: "POST",
+      body: JSON.stringify({ model_type: modelType }),
+    });
+    if (r && r.ok) {
+      showToast(`Retraining started (${modelType.toUpperCase()})`, "success");
+      // Poll status until done
+      const poll = setInterval(async () => {
+        await loadRetrainingStatus();
+        const sr = await API.request("/retraining/status");
+        if (sr && sr.ok) {
+          const status = await sr.json();
+          if (!status.is_training) {
+            clearInterval(poll);
+            showToast("Retraining complete!", "success");
+            loadModelSelector(); // Refresh models
+            if (btn) {
+              btn.disabled = false;
+              btn.innerHTML = '<i class="bi bi-lightning-charge-fill"></i> Retrain Now';
+            }
+          }
+        }
+      }, 5000);
+    } else {
+      const d = await r?.json().catch(() => ({}));
+      showToast(d?.detail || "Failed to trigger retraining", "error");
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-lightning-charge-fill"></i> Retrain Now';
+      }
+    }
+  } catch (e) {
+    showToast("Error: " + e.message, "error");
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-lightning-charge-fill"></i> Retrain Now';
+    }
+  }
+}
+
+// Load retraining status when System Health section is shown
+const _origShowSection = window.showSection;
+if (_origShowSection) {
+  window.showSection = function(section, ...args) {
+    _origShowSection(section, ...args);
+    if (section === "section-health") {
+      loadRetrainingStatus();
+    }
+  };
+}

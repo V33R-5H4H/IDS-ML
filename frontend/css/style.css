@@ -377,6 +377,15 @@ textarea.form-input{min-height:80px}
   display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));
   gap:14px;margin-bottom:24px;
 }
+.stats-grid-6{grid-template-columns:repeat(6,1fr);}
+.card-row{display:flex;gap:16px;}
+.card-row>.card{flex:1;min-width:0;}
+.stat-card.purple{border-color:#8b5cf633;}.stat-card.purple .stat-icon{color:#8b5cf6;background:#8b5cf622;}
+.stat-card.purple .stat-value{color:#8b5cf6;}
+.stat-card.orange{border-color:#f9731633;}.stat-card.orange .stat-icon{color:#f97316;background:#f9731622;}
+.stat-card.orange .stat-value{color:#f97316;}
+.threat-label{color:#ef4444;font-weight:600;font-size:12px;}
+.normal-label{color:#64748b;font-size:12px;}
 .stat-card{
   background:var(--bg-card);border:1px solid var(--border);
   border-radius:var(--radius);padding:16px;
