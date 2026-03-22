@@ -18,6 +18,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy backend source code, scripts, and model metadata
 # We copy them into the exact paths expected by the python environment
 COPY backend/ /app/backend/
+COPY data/ /app/data/
 COPY models/ /app/models/
 COPY scripts/ /app/scripts/
 

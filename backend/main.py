@@ -1119,8 +1119,9 @@ async def ws_live_capture(ws: WebSocket, token: str = Query(...)):
 # ══════════════════════════════════════════════════════════════════════════════
 # MODEL MANAGEMENT  (admin / analyst)
 # ══════════════════════════════════════════════════════════════════════════════
-class ModelSwitchRequest(BaseModel):
+class SwitchModelRequest(BaseModel):
     model_key: str
+    model_config = {"protected_namespaces": ()}
 
 
 @app.get("/models", tags=["Models"])
@@ -1141,7 +1142,7 @@ async def get_active_model(
 
 @app.post("/models/switch", tags=["Models"])
 async def switch_model(
-    req:   ModelSwitchRequest,
+    req:   SwitchModelRequest,
     _user: User = Depends(require_roles("admin")),
 ):
     """Switch the active ML model (admin only)."""
@@ -1192,6 +1193,7 @@ async def retraining_status(
 
 class RetrainRequest(BaseModel):
     model_type: str = "rf"
+    model_config = {"protected_namespaces": ()}
 
 
 @app.post("/retraining/trigger", tags=["Retraining"])
@@ -1223,6 +1225,7 @@ class RetrainingConfigUpdate(BaseModel):
     dataset: str = None
     min_samples: int = None
     enabled: bool = None
+    model_config = {"protected_namespaces": ()}
 
 
 @app.patch("/retraining/config", tags=["Retraining"])

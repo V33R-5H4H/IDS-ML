@@ -241,6 +241,34 @@ async function _loadDashboardStats(role) {
   if (el("chartDonut")) _renderDashboardCharts(stats);
 }
 
+// ── Auto-Refresh Polling ───────────────────────────────────────────────────
+let _dashPollingInterval = null;
+
+function startDashboardPolling() {
+  if (_dashPollingInterval) return;
+  console.log("[Dash] Starting auto-refresh...");
+  _dashPollingInterval = setInterval(async () => {
+    // Only poll if dashboard section is actually visible
+    const dashSection = document.getElementById("section-dashboard");
+    if (dashSection && dashSection.classList.contains("active")) {
+      const role = currentUser?.role || "viewer";
+      await _loadDashboardStats(role);
+      await checkAPIHealth();
+      if (role === "admin") await loadPendingReqBadge();
+    } else {
+      stopDashboardPolling();
+    }
+  }, 10000); // Refresh every 10 seconds
+}
+
+function stopDashboardPolling() {
+  if (_dashPollingInterval) {
+    console.log("[Dash] Stopping auto-refresh");
+    clearInterval(_dashPollingInterval);
+    _dashPollingInterval = null;
+  }
+}
+
 // ── Chart instances (module-level so we can destroy on re-render) ──────────
 const _dc = { donut: null, line: null, attacks: null };
 
@@ -901,6 +929,13 @@ function navigateTo(section, cfg) {
   if (section === 'predictions') { if (typeof loadPredictions === 'function') loadPredictions(); }
   if (section === 'reports') { if (typeof loadReports === 'function') loadReports(); }
   if (section === 'live') { if (typeof initLiveCapture === 'function') initLiveCapture(); }
+
+  if (section === "dashboard") {
+    loadDashboardCards(cfg, currentUser?.role || "viewer");
+    startDashboardPolling();
+  } else {
+    stopDashboardPolling();
+  }
 }
 
 // ── USERS TABLE ───────────────────────────────────────────────────────────
