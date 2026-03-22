@@ -16,9 +16,13 @@ except ImportError:
     pass
 
 # ── Resolve DATABASE_URL ──────────────────────────────────────────────────────
-_raw_url = os.getenv("DATABASE_URL", "").strip()
-if _raw_url.startswith("postgres://"):
-    _raw_url = _raw_url.replace("postgres://", "postgresql://", 1)
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
+POSTGRES_URL = os.getenv("POSTGRES_URL", "").strip()
+
+if SUPABASE_URL.startswith("postgres://"):
+    SUPABASE_URL = SUPABASE_URL.replace("postgres://", "postgresql://", 1)
+if POSTGRES_URL.startswith("postgres://"):
+    POSTGRES_URL = POSTGRES_URL.replace("postgres://", "postgresql://", 1)
 
 _SQLITE_FALLBACK = (
     f"sqlite:///{os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ids_ml.db')}"
@@ -30,7 +34,14 @@ def _make_engine(url: str):
         return create_engine(url,
             connect_args={"check_same_thread": False},
             pool_pre_ping=True)
+    
+    # Required for Supabase / remote postgres
+    connect_args = {}
+    if "supabase.com" in url:
+        connect_args["sslmode"] = "require"
+        
     return create_engine(url,
+        connect_args=connect_args,
         pool_size=5, max_overflow=10,
         pool_pre_ping=True, pool_recycle=300)
 
@@ -46,23 +57,31 @@ def _test_engine(eng) -> bool:
 # ── Connect ───────────────────────────────────────────────────────────────────
 _is_sqlite = True
 DATABASE_URL = _SQLITE_FALLBACK
+engine = None
 
-if _raw_url:
-    _label = _raw_url.split("@")[-1] if "@" in _raw_url else _raw_url
-    print(f"[DB] Trying: {_label}")
-    _try = _make_engine(_raw_url)
+# 1. Try Primary: Supabase
+if SUPABASE_URL:
+    print("[DB] Trying Primary: Supabase...")
+    _try = _make_engine(SUPABASE_URL)
     if _test_engine(_try):
-        engine       = _try
-        DATABASE_URL = _raw_url
-        _is_sqlite   = _raw_url.startswith("sqlite")
-        _db_type     = "SQLite" if _is_sqlite else "PostgreSQL"
-        print(f"[DB] ✅ Connected ({_db_type}): {_label}")
-    else:
-        print("[DB] ⚠️  PostgreSQL unreachable — using SQLite fallback")
-        engine = _make_engine(_SQLITE_FALLBACK)
-        print(f"[DB] ✅ SQLite: {_SQLITE_FALLBACK}")
-else:
-    print("[DB] ⚠️  DATABASE_URL not set — using SQLite")
+        engine = _try
+        DATABASE_URL = SUPABASE_URL
+        _is_sqlite = False
+        print("[DB] ✅ Connected to Supabase!")
+
+# 2. Try Secondary: Local Postgres
+if not engine and POSTGRES_URL:
+    print("[DB] ⚠️ Subabase unreachable. Trying Backup: Local Postgres...")
+    _try = _make_engine(POSTGRES_URL)
+    if _test_engine(_try):
+        engine = _try
+        DATABASE_URL = POSTGRES_URL
+        _is_sqlite = False
+        print("[DB] ✅ Connected to Local Postgres backup!")
+
+# 3. Fallback: SQLite
+if not engine:
+    print("[DB] ⚠️ Postgres unreachable. Using SQLite fallback.")
     engine = _make_engine(_SQLITE_FALLBACK)
     print(f"[DB] ✅ SQLite: {_SQLITE_FALLBACK}")
 
@@ -235,6 +254,8 @@ def create_tables():
     _ensure_tables_raw()
     # Step 2: Register ORM models and sync any ORM-managed tables
     import backend.models as _models  # noqa: F401
+    import backend.models_pcap as _models_pcap  # noqa: F401
+    import backend.models_analytics as _models_analytics  # noqa: F401
     Base.metadata.create_all(bind=engine)
     # Step 3: Add any missing columns to existing tables
     run_migrations()
