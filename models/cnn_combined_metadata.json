@@ -1,0 +1,13 @@
+{
+  "model_name": "1D-CNN (combined)",
+  "model_type": "CNN",
+  "model_file": "cnn_combined.keras",
+  "accuracy": 0.6152779916833513,
+  "epochs_trained": 9,
+  "training_samples": 500063,
+  "test_samples": 584370,
+  "n_classes": 37,
+  "dataset": "combined",
+  "training_time_seconds": 107.0,
+  "parameters": 23685
+}

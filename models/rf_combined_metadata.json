@@ -1,0 +1,12 @@
+{
+  "model_name": "Random Forest (combined)",
+  "model_type": "RandomForestClassifier",
+  "model_file": "rf_combined.pkl",
+  "accuracy": 0.967140681417595,
+  "n_estimators": 100,
+  "training_samples": 500063,
+  "test_samples": 584370,
+  "n_classes": 37,
+  "dataset": "combined",
+  "training_time_seconds": 16.1
+}

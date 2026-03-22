@@ -1,0 +1,34 @@
+{
+  "dataset": "nslkdd",
+  "smote": true,
+  "n_classes": 23,
+  "results": {
+    "lstm": 0.7619453016920293,
+    "cnn": 0.7615728423965096
+  },
+  "attack_types": [
+    "back",
+    "buffer_overflow",
+    "ftp_write",
+    "guess_passwd",
+    "imap",
+    "ipsweep",
+    "land",
+    "loadmodule",
+    "multihop",
+    "neptune",
+    "nmap",
+    "normal",
+    "perl",
+    "phf",
+    "pod",
+    "portsweep",
+    "rootkit",
+    "satan",
+    "smurf",
+    "spy",
+    "teardrop",
+    "warezclient",
+    "warezmaster"
+  ]
+}

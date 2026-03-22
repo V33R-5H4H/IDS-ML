@@ -903,7 +903,7 @@ function navigateTo(section, cfg) {
 
   if (section === "users")    loadUsers();
   if (section === "requests") { loadRoleRequests("pending"); loadPasswordResets(); }
-  if (section === "health")   checkAPIHealth();
+  if (section === "health")   { checkAPIHealth(); loadModelSelector(); }
   if (section === "account")  initAccountSection(currentUser);
   if (section === "pcap")     { if (typeof loadPcapHistory === "function") loadPcapHistory(); }
   if (section === 'predictions') { if (typeof loadPredictions === 'function') loadPredictions(); }
@@ -1378,4 +1378,94 @@ function timeSince(dateStr) {
 function _txt(id, val) {
   const el = document.getElementById(id);
   if (el) el.textContent = val;
+}
+
+// ── MODEL MANAGEMENT ──────────────────────────────────────────────────────────
+async function loadModelSelector() {
+  try {
+    const models = await API.getModels();
+    const active = await API.getActiveModel();
+
+    // Update active model info
+    if (active) {
+      _txt("activeModelName", active.model_name || active.key || "—");
+      _txt("activeModelAccuracy", active.accuracy
+        ? `${(active.accuracy * 100).toFixed(1)}%`
+        : "—");
+      _txt("activeModelType", active.model_type || "—");
+      _txt("activeModelDataset", active.dataset || "—");
+    }
+
+    // Populate dropdown
+    const sel = document.getElementById("modelSelector");
+    if (sel && models.length > 0) {
+      sel.innerHTML = models.map(m => {
+        const acc = m.accuracy ? ` (${(m.accuracy * 100).toFixed(1)}%)` : "";
+        const selected = m.is_active ? "selected" : "";
+        return `<option value="${m.key}" ${selected}>${m.name}${acc}</option>`;
+      }).join("");
+    } else if (sel) {
+      sel.innerHTML = `<option value="">No models available</option>`;
+    }
+
+    // Build model comparison list
+    const listEl = document.getElementById("modelList");
+    if (listEl && models.length > 1) {
+      listEl.innerHTML = `
+        <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:8px;">
+          Available Models (${models.length})
+        </div>
+        ${models.map(m => `
+          <div class="health-row" style="padding:6px 0;">
+            <span style="display:flex;align-items:center;gap:8px;">
+              <span class="health-dot ${m.is_active ? 'green' : 'gray'}"></span>
+              <span>${m.name}</span>
+            </span>
+            <span style="font-size:0.85rem; color:var(--text-muted);">
+              ${m.accuracy ? (m.accuracy * 100).toFixed(1) + '%' : '—'}
+              · ${m.type || '?'} · ${m.dataset || '?'}
+            </span>
+          </div>
+        `).join("")}
+      `;
+    } else if (listEl) {
+      listEl.innerHTML = "";
+    }
+  } catch (e) {
+    console.warn("Model selector load failed:", e);
+  }
+}
+
+async function switchSelectedModel() {
+  const sel = document.getElementById("modelSelector");
+  if (!sel || !sel.value) return;
+
+  if (currentUser && currentUser.role !== "admin") {
+    showToast("Only admins can switch models", "warning");
+    return;
+  }
+
+  const key = sel.value;
+  const result = await API.switchModel(key);
+  if (result.ok) {
+    showToast(`Switched to ${result.data.model?.model_name || key}`, "success");
+    loadModelSelector();
+  } else {
+    showToast(result.data?.detail || "Failed to switch model", "error");
+  }
+}
+
+async function refreshModelList() {
+  if (currentUser && currentUser.role !== "admin") {
+    showToast("Only admins can refresh models", "warning");
+    return;
+  }
+
+  const result = await API.refreshModels();
+  if (result.ok) {
+    showToast("Models refreshed", "success");
+    loadModelSelector();
+  } else {
+    showToast(result.data?.detail || "Failed to refresh", "error");
+  }
 }

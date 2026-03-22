@@ -1,0 +1,13 @@
+{
+  "model_name": "1D-CNN (nslkdd)",
+  "model_type": "CNN",
+  "model_file": "cnn_nslkdd.keras",
+  "accuracy": 0.7615728423965096,
+  "epochs_trained": 30,
+  "training_samples": 1548889,
+  "test_samples": 18794,
+  "n_classes": 23,
+  "dataset": "nslkdd",
+  "training_time_seconds": 1224.8,
+  "parameters": 22775
+}

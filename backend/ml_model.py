@@ -173,23 +173,59 @@ class IDSModel:
             df = pd.DataFrame(vec, columns=FEATURE_NAMES)
             vec = self.scaler.transform(df)
         
-        proba = self.model.predict_proba(vec)[0]
-        classes = list(self.model.classes_)
-        
+        # Try model_manager first (supports RF/LSTM/CNN switching)
         try:
-            normal_idx = classes.index(self._normal_idx)
-            score = float(1.0 - proba[normal_idx])
-        except (ValueError, AttributeError):
-            score = float(1.0 - proba[0])
+            from backend.model_manager import model_manager
+            if model_manager.get_active():
+                proba = model_manager.predict(vec)
+                n_classes = proba.shape[1]
+                
+                # Find normal class probability
+                active_meta = model_manager.get_active_metadata()
+                attack_types = active_meta.get("attack_types") or ATTACK_TYPES
+                normal_idx = None
+                for i, at in enumerate(attack_types):
+                    if at == "normal":
+                        normal_idx = i
+                        break
+                
+                if normal_idx is not None and normal_idx < n_classes:
+                    score = float(1.0 - proba[0][normal_idx])
+                else:
+                    score = float(1.0 - proba[0][0])
+                
+                pred_class = int(np.argmax(proba[0]))
+                attack_type = (
+                    attack_types[pred_class]
+                    if pred_class < len(attack_types)
+                    else "unknown"
+                )
+                
+                return round(min(max(score, 0.0), 1.0), 4), attack_type
+        except Exception as e:
+            log.debug("model_manager inference failed, falling back to direct RF: %s", e)
         
-        pred_class = int(self.model.predict(vec)[0])
-        attack_type = (
-            ATTACK_TYPES[pred_class]
-            if pred_class < len(ATTACK_TYPES)
-            else "unknown"
-        )
+        # Fallback: direct RF model inference
+        if self.model:
+            proba = self.model.predict_proba(vec)[0]
+            classes = list(self.model.classes_)
+            
+            try:
+                normal_idx = classes.index(self._normal_idx)
+                score = float(1.0 - proba[normal_idx])
+            except (ValueError, AttributeError):
+                score = float(1.0 - proba[0])
+            
+            pred_class = int(self.model.predict(vec)[0])
+            attack_type = (
+                ATTACK_TYPES[pred_class]
+                if pred_class < len(ATTACK_TYPES)
+                else "unknown"
+            )
+            
+            return round(min(max(score, 0.0), 1.0), 4), attack_type
         
-        return round(min(max(score, 0.0), 1.0), 4), attack_type
+        raise RuntimeError("No model available for inference")
     
     # ── Heuristic fallback ────────────────────────────────────────────────────
     def _heuristic_score(self, f: Dict[str, float]) -> float:

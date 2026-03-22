@@ -1,0 +1,13 @@
+{
+  "model_name": "LSTM (nslkdd)",
+  "model_type": "LSTM",
+  "model_file": "lstm_nslkdd.keras",
+  "accuracy": 0.7619453016920293,
+  "epochs_trained": 19,
+  "training_samples": 1548889,
+  "test_samples": 18794,
+  "n_classes": 23,
+  "dataset": "nslkdd",
+  "training_time_seconds": 398.9,
+  "parameters": 35735
+}

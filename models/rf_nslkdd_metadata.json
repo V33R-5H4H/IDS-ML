@@ -1,0 +1,12 @@
+{
+  "model_name": "Random Forest (nslkdd)",
+  "model_type": "RandomForestClassifier",
+  "model_file": "rf_nslkdd.pkl",
+  "accuracy": 0.8580930084069384,
+  "n_estimators": 300,
+  "training_samples": 1548889,
+  "test_samples": 18794,
+  "n_classes": 23,
+  "dataset": "nslkdd",
+  "training_time_seconds": 110.1
+}

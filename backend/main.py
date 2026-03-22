@@ -22,6 +22,7 @@ from backend.auth import (
 )
 from backend.pcap_analyzer import run_analysis, _orm_to_dict
 from backend.live_capture import capture_manager, get_interfaces as _get_interfaces
+from backend.model_manager import model_manager
 
 # ══════════════════════════════════════════════════════════════════════════════
 # DEFAULT ADMIN SEED
@@ -690,8 +691,8 @@ async def dashboard_stats(
         "by_label":       by_label,
         "top_attacks":    [{"type": t, "count": c} for t, c in top_attacks],
         "last_7_days":    last_7,
-        "model":          "Random Forest IDS",
-        "model_accuracy": "85.9%",
+        "model":          model_manager.get_active_metadata().get("model_name", "Random Forest IDS"),
+        "model_accuracy": f"{model_manager.get_active_metadata().get('accuracy', 0.859)*100:.1f}%",
     }
 
 
@@ -752,8 +753,8 @@ async def reports_summary(
         "top_attack_types": [{"type": t, "count": c} for t, c in top_attacks],
         "top_protocols":    [{"protocol": p, "count": c} for p, c in top_protocols],
         "weekly":           weekly,
-        "model_name":       "Random Forest IDS",
-        "model_accuracy":   "85.9%",
+        "model_name":       model_manager.get_active_metadata().get("model_name", "Random Forest IDS"),
+        "model_accuracy":   f"{model_manager.get_active_metadata().get('accuracy', 0.859)*100:.1f}%",
         "recent":           [_orm_to_dict(r) for r in rows[:10]],
     }
 
@@ -882,6 +883,53 @@ async def ws_live_capture(ws: WebSocket, token: str = Query(...)):
         pass
     finally:
         capture_manager.unsubscribe(queue)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MODEL MANAGEMENT  (admin / analyst)
+# ══════════════════════════════════════════════════════════════════════════════
+class ModelSwitchRequest(BaseModel):
+    model_key: str
+
+
+@app.get("/models", tags=["Models"])
+async def list_models(
+    _user: User = Depends(get_current_user),
+):
+    """List all available ML models with accuracy metadata."""
+    return model_manager.list_models()
+
+
+@app.get("/models/active", tags=["Models"])
+async def get_active_model(
+    _user: User = Depends(get_current_user),
+):
+    """Get the currently active model and its metadata."""
+    return model_manager.get_active_metadata()
+
+
+@app.post("/models/switch", tags=["Models"])
+async def switch_model(
+    req:   ModelSwitchRequest,
+    _user: User = Depends(require_roles("admin")),
+):
+    """Switch the active ML model (admin only)."""
+    try:
+        meta = model_manager.set_active(req.model_key)
+        return {"message": f"Switched to {meta.get('model_name', req.model_key)}", "model": meta}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"Failed to switch model: {e}")
+
+
+@app.post("/models/refresh", tags=["Models"])
+async def refresh_models(
+    _user: User = Depends(require_roles("admin")),
+):
+    """Re-scan models directory for newly trained models."""
+    model_manager.refresh()
+    return {"message": "Models refreshed", "models": model_manager.list_models()}
 
 
 # ══════════════════════════════════════════════════════════════════════════════

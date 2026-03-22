@@ -538,6 +538,48 @@
         </div>
       </div>
     </div>
+
+    <!-- ML MODEL MANAGEMENT -->
+    <div class="card" style="margin-top:20px;">
+      <div class="card-header">
+        <h3><i class="bi bi-cpu-fill me-2"></i>ML Model Management</h3>
+        <button class="btn-ghost" onclick="refreshModelList()" title="Refresh models">
+          <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+      </div>
+      <div class="card-body">
+        <div class="health-row">
+          <span class="health-label">Active Model</span>
+          <span class="health-val" id="activeModelName">Loading...</span>
+        </div>
+        <div class="health-row">
+          <span class="health-label">Accuracy</span>
+          <span class="health-val" id="activeModelAccuracy">—</span>
+        </div>
+        <div class="health-row">
+          <span class="health-label">Type</span>
+          <span class="health-val" id="activeModelType">—</span>
+        </div>
+        <div class="health-row">
+          <span class="health-label">Dataset</span>
+          <span class="health-val" id="activeModelDataset">—</span>
+        </div>
+        <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
+          <label style="font-size:0.85rem; color:var(--text-muted); margin-bottom:8px; display:block;">
+            Switch Model (Admin Only)
+          </label>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <select id="modelSelector" style="flex:1; padding:8px 12px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--text); font-size:0.9rem;">
+              <option value="">Loading models...</option>
+            </select>
+            <button class="btn-primary" onclick="switchSelectedModel()" style="padding:8px 16px; white-space:nowrap;">
+              <i class="bi bi-arrow-repeat"></i> Switch
+            </button>
+          </div>
+        </div>
+        <div id="modelList" style="margin-top:16px;"></div>
+      </div>
+    </div>
   </section>
 
   <!-- MY ACCOUNT -->

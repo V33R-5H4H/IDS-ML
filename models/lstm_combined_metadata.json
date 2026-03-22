@@ -1,0 +1,13 @@
+{
+  "model_name": "LSTM (combined)",
+  "model_type": "LSTM",
+  "model_file": "lstm_combined.keras",
+  "accuracy": 0.700533908311515,
+  "epochs_trained": 20,
+  "training_samples": 500063,
+  "test_samples": 584370,
+  "n_classes": 37,
+  "dataset": "combined",
+  "training_time_seconds": 127.8,
+  "parameters": 36645
+}

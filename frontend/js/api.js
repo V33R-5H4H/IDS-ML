@@ -178,4 +178,28 @@ window.API = {
     const r = await this.request("/reports/summary");
     return r && r.ok ? await r.json() : null;
   },
+
+  // ── Model Management ──────────────────────────────────────────────────
+  getModels: async function () {
+    const r = await this.request("/models");
+    return r && r.ok ? await r.json() : [];
+  },
+
+  getActiveModel: async function () {
+    const r = await this.request("/models/active");
+    return r && r.ok ? await r.json() : null;
+  },
+
+  switchModel: async function (modelKey) {
+    const r = await this.request("/models/switch", {
+      method: "POST",
+      body: JSON.stringify({ model_key: modelKey }),
+    });
+    return r ? { ok: r.ok, data: await r.json() } : { ok: false, data: { detail: "Error" } };
+  },
+
+  refreshModels: async function () {
+    const r = await this.request("/models/refresh", { method: "POST" });
+    return r ? { ok: r.ok, data: await r.json() } : { ok: false, data: { detail: "Error" } };
+  },
 };

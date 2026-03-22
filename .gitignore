@@ -119,3 +119,4 @@ package-lock.json
 /docs/New folder/
 docs/walkthrough.md
 frontend/js/config.js
+data/raw/*
