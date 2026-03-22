@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   ids-ml-backend:
@@ -13,6 +12,15 @@ services:
       - ./logs:/app/logs
     env_file:
       - .env
+    restart: unless-stopped
+    networks:
+      - ids_network
+
+  ids-ml-frontend:
+    build: ./frontend
+    container_name: ids-ml-frontend
+    ports:
+      - "3000:80"
     restart: unless-stopped
     networks:
       - ids_network
