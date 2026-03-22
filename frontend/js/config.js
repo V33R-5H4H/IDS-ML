@@ -4,6 +4,6 @@ const isLocal = location.hostname === "localhost" || location.hostname === "127.
 
 window.API_BASE = isLocal 
     ? "http://localhost:9001" 
-    : "https://ids-ml-backend.onrender.com"; // <-- Update this after Render deployment
+    : "https://ids-ml-backend.onrender.com";
 
 console.log(`[Config] API Base: ${window.API_BASE} (${isLocal ? 'Local' : 'Production'})`);
