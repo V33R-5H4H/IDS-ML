@@ -75,9 +75,11 @@ class ModelManager:
                 **{k: v for k, v in meta.items() if k not in ["model_name", "accuracy"]},
             }
 
-        # Set active model (prefer combined RF, then legacy, then first available)
+        # Set active model (prefer ensemble, then combined RF, then legacy)
         if self._metadata:
             preference_order = [
+                "ensemble_stacking_combined", "ensemble_voting_combined",
+                "ensemble_stacking_nslkdd", "ensemble_voting_nslkdd",
                 "rf_combined", "rf_nslkdd", "random_forest_ids",
                 "lstm_combined", "lstm_nslkdd",
                 "cnn_combined", "cnn_nslkdd",
@@ -138,7 +140,7 @@ class ModelManager:
         meta = self._metadata[key]
         model_type = meta.get("model_type", "")
 
-        if model_type == "RandomForestClassifier":
+        if model_type in ("RandomForestClassifier", "VotingClassifier", "StackingClassifier"):
             return model.predict_proba(X)
         elif model_type in ("LSTM", "CNN"):
             # Reshape for Keras models
