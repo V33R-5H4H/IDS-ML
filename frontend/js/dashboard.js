@@ -10,7 +10,6 @@ const ROLES = {
     nav: [
       { section: "dashboard", icon: "bi-speedometer2",          label: "Dashboard" },
       { section: "predictions", icon: "bi-activity",            label: "Predictions", badge: "predBadge" },
-      { section: "alerts",    icon: "bi-bell-fill",             label: "Alerts",      badge: "alertBadge", badgeCls: "danger" },
       { section: "pcap",      icon: "bi-file-earmark-binary-fill", label: "PCAP Analysis" },
       { section: "live",      icon: "bi-broadcast",             label: "Live Capture" },
       { separator: "ADMIN" },
@@ -20,24 +19,23 @@ const ROLES = {
       { separator: "ACCOUNT" },
       { section: "account",   icon: "bi-person-gear",           label: "My Account" },
     ],
-    stats: ["total","attacks","normal","alerts","model","users"],
-    allowedSections: ["dashboard","predictions","alerts","pcap","live","users","requests","health","account"],
+    stats: ["total","attacks","normal","model","users"],
+    allowedSections: ["dashboard","predictions","pcap","live","users","requests","health","account"],
   },
   analyst: {
     banner:  { label: "Analyst", icon: "bi-person-badge-fill", cls: "banner-analyst",
                greeting: "Analyst Workstation",
-               subtitle: "Detection analysis, PCAP uploads and alert management" },
+               subtitle: "Detection analysis and PCAP uploads" },
     nav: [
       { section: "dashboard",   icon: "bi-speedometer2",           label: "Dashboard" },
       { section: "predictions", icon: "bi-activity",               label: "Predictions", badge: "predBadge" },
-      { section: "alerts",      icon: "bi-bell-fill",              label: "Alerts",      badge: "alertBadge", badgeCls: "danger" },
       { section: "pcap",        icon: "bi-file-earmark-binary-fill", label: "PCAP Analysis" },
       { section: "live",        icon: "bi-broadcast",              label: "Live Capture" },
       { separator: "ACCOUNT" },
       { section: "account",     icon: "bi-person-gear",            label: "My Account" },
     ],
-    stats: ["total","attacks","normal","alerts","model"],
-    allowedSections: ["dashboard","predictions","alerts","pcap","live","account"],
+    stats: ["total","attacks","normal","model"],
+    allowedSections: ["dashboard","predictions","pcap","live","account"],
   },
   viewer: {
     banner:  { label: "Viewer", icon: "bi-eye-fill", cls: "banner-viewer",
@@ -58,7 +56,6 @@ const STAT_DEFS = {
   total:   { id: "statTotal",   icon: "bi-activity",           label: "Total Predictions", cls: "blue",   trend: "Live",     trendCls: "up" },
   attacks: { id: "statAttacks", icon: "bi-shield-exclamation", label: "Attacks Detected",  cls: "red",    trend: "Active",   trendCls: "danger" },
   normal:  { id: "statNormal",  icon: "bi-check-circle-fill",  label: "Normal Traffic",    cls: "green",  trend: "Stable",   trendCls: "" },
-  alerts:  { id: "statAlerts",  icon: "bi-bell-fill",          label: "Active Alerts",     cls: "yellow", trend: "Review",   trendCls: "danger" },
   model:   { id: "statModel",   icon: "bi-cpu-fill",           label: "Active Model",      cls: "purple", trend: "85.9% Acc",trendCls: "" },
   users:   { id: "statUsers",   icon: "bi-people-fill",        label: "Total Users",       cls: "teal",   trend: "Active",   trendCls: "" },
 };
@@ -201,7 +198,7 @@ async function loadDashboardCards(cfg, role) {
   document.getElementById("dashSubtitle").textContent = cfg.banner.subtitle;
 
   // Reset stat cards
-  ["statTotal", "statAttacks", "statNormal", "statAlerts"].forEach(id => {
+  ["statTotal", "statAttacks", "statNormal"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.textContent = "—";
   });
@@ -595,11 +592,6 @@ function analystCards() {
           <div><strong>Predictions</strong><small>View risk feed</small></div>
           <i class="bi bi-chevron-right ms-auto"></i>
         </button>
-        <button class="quick-action-btn" onclick="navigateTo('alerts')">
-          <i class="bi bi-bell-fill text-danger"></i>
-          <div><strong>Alerts</strong><small>Active threat alerts</small></div>
-          <i class="bi bi-chevron-right ms-auto"></i>
-        </button>
         <button class="quick-action-btn" onclick="navigateTo('account')">
           <i class="bi bi-person-gear text-purple"></i>
           <div><strong>My Account</strong><small>Edit profile & password</small></div>
@@ -894,7 +886,7 @@ function navigateTo(section, cfg) {
   if (t) t.classList.add("active");
 
   const titles = {
-    dashboard:"Dashboard", predictions:"Predictions", alerts:"Alerts",
+    dashboard:"Dashboard", predictions:"Predictions",
     pcap:"PCAP Analysis", live:"Live Capture", reports:"Reports",
     users:"User Management", requests:"Access Requests",
     health:"System Health", account:"My Account"

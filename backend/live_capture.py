@@ -101,7 +101,7 @@ class CaptureManager:
             if model_manager.get_active():
                 self._ml_model = model_manager
                 log.info("ML model loaded for live inference: %s",
-                         model_manager.get_active().get("model_name", "?"))
+                         model_manager.get_active_metadata().get("model_name", "?"))
             else:
                 log.warning("No active ML model — live inference disabled")
         except Exception as e:
@@ -138,26 +138,19 @@ class CaptureManager:
         if not self._ml_model:
             return None
         try:
-            import numpy as np
-            # Build feature vector matching NSL-KDD schema
-            features = np.array([[
-                0.0,  # duration (single packet = 0)
-                {"TCP": 0, "UDP": 1, "ICMP": 2}.get(pkt_data.get("protocol", ""), 0),
-                pkt_data.get("_dst_port_enc", 8),  # service encoding
-                pkt_data.get("_flag_enc", 0),  # flag
-                float(pkt_data.get("length", 0)),  # src_bytes
-                0.0,  # dst_bytes (unknown for single packet)
-                1.0 if pkt_data.get("_has_response") else 0.0,  # logged_in
-                1.0,  # count
-                1.0,  # srv_count
-                pkt_data.get("_syn_ratio", 0.0),  # serror_rate
-                pkt_data.get("_syn_ratio", 0.0),  # srv_serror_rate
-                min(pkt_data.get("_dst_port", 0), 255),  # dst_host_srv_count
-            ]])
-            # model_manager.predict_class(X) returns predicted class index
-            pred_class = self._ml_model.predict_class(features)
+            from backend.ml_model import ids_model
+            f = {
+                "total_packets": 1,
+                "duration_seconds": 0.001,
+                "tcp_packets": 1 if pkt_data.get("protocol") == "TCP" else 0,
+                "udp_packets": 1 if pkt_data.get("protocol") == "UDP" else 0,
+                "icmp_packets": 1 if pkt_data.get("protocol") == "ICMP" else 0,
+                "total_bytes": pkt_data.get("length", 0),
+                "unique_dst_ips": 1
+            }
+            res = ids_model.predict(f)
             self._stats["ml_predictions"] += 1
-            return str(pred_class)
+            return res.get("attack_type", "normal")
         except Exception as e:
             log.debug("ML inference error: %s", e)
         return None

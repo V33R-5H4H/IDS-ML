@@ -1,10 +1,10 @@
 {
-  "model_name": "RF (combined) v20260322_1306",
+  "model_name": "RF (combined) v20260322_1430",
   "model_type": "RandomForestClassifier",
-  "model_file": "rf_combined_v20260322_1306.pkl",
+  "model_file": "rf_combined_v20260322_1430.pkl",
   "accuracy": 0.967231377380769,
   "dataset": "combined",
   "training_samples": 300000,
   "retrained": true,
-  "timestamp": "20260322_1306"
+  "timestamp": "20260322_1430"
 }

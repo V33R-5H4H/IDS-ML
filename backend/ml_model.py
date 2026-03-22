@@ -76,6 +76,8 @@ class IDSModel:
             self._proto_map  = self._build_map("protocol_type", ["tcp","udp","icmp"])
             self._flag_map   = self._build_map("flag", ["SF","S0","REJ","RSTO","SH","OTH"])
             self._svc_default = self._encode_cat("service", "http")
+            self._svc_udp = self._encode_cat("service", "domain_u")
+            self._svc_icmp = self._encode_cat("service", "eco_i")
 
         except Exception as e:
             log.warning("⚠️  Could not load preprocessed_data.pkl: %s", e)
@@ -127,19 +129,27 @@ class IDSModel:
         icmp     = f.get("icmp_packets",     0)
         total_b  = f.get("total_bytes",      0)
         dst_ips  = f.get("unique_dst_ips",   1)
-        pkt_rate = total / duration
+        
+        # Prevent single packets from being extrapolated into DoS rates
+        if total <= 5 and duration < 0.05:
+            pkt_rate = total
+        else:
+            pkt_rate = total / duration
 
         # ── Categorical encoding ───────────────────────────────────────────────
-        # Dominant protocol
+        # Dominant protocol & appropriate default service
         if tcp >= udp and tcp >= icmp:
             proto_enc = self._proto_map.get("tcp", 1)
+            svc_enc = self._svc_default
+            logged_in_val = 1.0
         elif udp >= icmp:
             proto_enc = self._proto_map.get("udp", 2)
+            svc_enc = getattr(self, "_svc_udp", self._svc_default)
+            logged_in_val = 0.0
         else:
             proto_enc = self._proto_map.get("icmp", 0)
-
-        # Service: default to http (most common in normal traffic)
-        svc_enc  = self._svc_default
+            svc_enc = getattr(self, "_svc_icmp", self._svc_default)
+            logged_in_val = 0.0
 
         # Flag: SF = normal established connection (safe default)
         flag_enc = self._flag_map.get("SF", 0)
@@ -147,20 +157,29 @@ class IDSModel:
         # ICMP ratio as SYN error proxy
         icmp_ratio = icmp / total
 
+        # Average bytes per packet
+        bpp = total_b / total if total > 0 else 0
+        
+        # Proxy for connection duration (most individual normal connections are short)
+        # PCAPs provide total capture duration, which breaks ML assumptions.
+        conn_duration = min(duration, 2.0)
+
         # ── Assemble vector in exact FEATURE_NAMES order ───────────────────────
         vec = [
-            duration,                        # duration
+            conn_duration,                   # duration proxy
             proto_enc,                       # protocol_type (encoded)
             svc_enc,                         # service       (encoded)
             flag_enc,                        # flag          (encoded)
-            total_b * 0.6,                   # src_bytes
-            total_b * 0.4,                   # dst_bytes
-            1.0,                             # logged_in
-            min(total, 511),                 # count
-            min(int(pkt_rate), 511),         # srv_count
+            bpp * 0.6,                       # src_bytes (normalized)
+            bpp * 0.4,                       # dst_bytes (normalized)
+            logged_in_val,                   # logged_in (0 for UDP/ICMP)
+            min(int(pkt_rate * 2), 511),     # count proxy
+            min(int(pkt_rate * 2), 511),     # srv_count proxy
+
+
             icmp_ratio,                      # serror_rate
             icmp_ratio,                      # srv_serror_rate
-            min(dst_ips, 255),               # dst_host_srv_count
+            min(int(pkt_rate * 2), 255),     # dst_host_srv_count (MUST correlate with srv_count!)
         ]
 
         return np.array(vec, dtype=np.float64).reshape(1, -1)
@@ -176,7 +195,8 @@ class IDSModel:
         # Try model_manager first (supports RF/LSTM/CNN switching)
         try:
             from backend.model_manager import model_manager
-            if model_manager.get_active():
+            active_key = model_manager.get_active()
+            if active_key:
                 proba = model_manager.predict(vec)
                 n_classes = proba.shape[1]
                 
@@ -201,9 +221,11 @@ class IDSModel:
                     else "unknown"
                 )
                 
-                return round(min(max(score, 0.0), 1.0), 4), attack_type
+                return round(min(max(score, 0.0), 1.0), 4), attack_type, active_key
         except Exception as e:
-            log.debug("model_manager inference failed, falling back to direct RF: %s", e)
+            log.error("model_manager inference failed, falling back to direct RF. Error: %s", e)
+            import traceback
+            log.error(traceback.format_exc())
         
         # Fallback: direct RF model inference
         if self.model:
@@ -223,7 +245,7 @@ class IDSModel:
                 else "unknown"
             )
             
-            return round(min(max(score, 0.0), 1.0), 4), attack_type
+            return round(min(max(score, 0.0), 1.0), 4), attack_type, self.model_name
         
         raise RuntimeError("No model available for inference")
     
@@ -254,11 +276,11 @@ class IDSModel:
     def predict(self, features: Dict[str, float]) -> Dict[str, Any]:
         if self.model:
             try:
-                score, attack_type = self._infer(self._build_vector(features))
+                score, attack_type, model_used = self._infer(self._build_vector(features))
                 return {
                     "risk_score": score,
                     "risk_label": score_to_label(score),
-                    "model_used": self.model_name,
+                    "model_used": model_used,
                     "attack_type": attack_type,
                 }
             except Exception as e:

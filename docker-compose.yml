@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: ids_ml_db
+    restart: always
+    environment:
+      POSTGRES_USER: ids_user
+      POSTGRES_PASSWORD: ids_password
+      POSTGRES_DB: ids_ml_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ids_user -d ids_ml_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ids_ml_backend
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://ids_user:ids_password@db:5432/ids_ml_db
+      - ENVIRONMENT=production
+      # - SLACK_WEBHOOK_URL=your_webhook_here
+      # - EMAIL_PASSWORD=your_app_password
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+    # Required for packet capture (scapy)
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    network_mode: bridge # Or host if full local packet capture is needed
+    
+  frontend:
+    image: nginx:alpine
+    container_name: ids_ml_frontend
+    restart: always
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+
+volumes:
+  postgres_data:

@@ -136,10 +136,13 @@ async def run_analysis(file: UploadFile, db, PcapAnalysis) -> dict:
     risk        = ids_model.predict(features)
     attack_type = _infer_attack_type(features, risk["risk_label"])
 
-    logger.info(
-        "Risk: %s (%.2f)  model=%s  attack=%s",
-        risk["risk_label"], risk["risk_score"], risk["model_used"], attack_type,
-    )
+    logger.warning("==== PCAP PREDICTION DEBUG ====")
+    logger.warning("Features extracted: %s", features)
+    logger.warning("Model used: %s", risk.get("model_used"))
+    logger.warning("Risk Score: %s | Risk Label: %s", risk.get("risk_score"), risk.get("risk_label"))
+    logger.warning("Attack Type: %s", attack_type)
+    logger.warning("===============================")
+
 
     # ── Persist ───────────────────────────────────────────────────────────────
     record = PcapAnalysis(

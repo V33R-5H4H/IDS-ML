@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from backend.database import create_tables, get_db, verify_connection
+from backend.analytics import analytics_engine
 from backend.models import User, RoleRequest, PasswordResetRequest
 from backend.models_pcap import PcapAnalysis
 from backend.auth import (
@@ -884,62 +885,56 @@ async def live_capture_analyze(
     _user: User = Depends(require_roles("admin", "analyst")),
 ):
     """Run ML analysis on captured packets and return predictions."""
-    import numpy as np
+    from backend.ml_model import ids_model
+    import asyncio
 
     packets = capture_manager.get_packets(limit=limit)
     if not packets:
         raise HTTPException(404, "No captured packets to analyze")
 
-    # Check if model is available
     active_model = model_manager.get_active()
     if not active_model:
         raise HTTPException(503, "No ML model available. Please activate a model first.")
 
     model_meta = model_manager.get_active_metadata()
 
-    # NSL-KDD attack labels (23-class)
-    ATTACK_LABELS = [
-        "normal", "neptune", "warezclient", "ipsweep", "portsweep",
-        "teardrop", "nmap", "satan", "smurf", "pod", "back",
-        "guess_passwd", "ftp_write", "multihop", "rootkit",
-        "buffer_overflow", "imap", "warezmaster", "phf", "land",
-        "loadmodule", "spy", "perl",
-    ]
-
     results = []
     threat_count = 0
     attack_breakdown = {}
 
     for pkt in packets:
-        proto_enc = {"TCP": 0, "UDP": 1, "ICMP": 2}.get(pkt.get("protocol", ""), 0)
-        length = float(pkt.get("length", 0))
-
-        features = np.array([[
-            0.0,        # duration
-            proto_enc,  # protocol_type
-            8,          # service (default: other)
-            0,          # flag
-            length,     # src_bytes
-            0.0,        # dst_bytes
-            0.0,        # logged_in
-            1.0,        # count
-            1.0,        # srv_count
-            0.0,        # serror_rate
-            0.0,        # srv_serror_rate
-            min(80, 255),  # dst_host_srv_count
-        ]])
+        f = {
+            "total_packets": 1,
+            "duration_seconds": 0.001,
+            "tcp_packets": 1 if pkt.get("protocol") == "TCP" else 0,
+            "udp_packets": 1 if pkt.get("protocol") == "UDP" else 0,
+            "icmp_packets": 1 if pkt.get("protocol") == "ICMP" else 0,
+            "total_bytes": pkt.get("length", 0),
+            "unique_dst_ips": 1
+        }
 
         try:
-            proba = model_manager.predict(features)
-            pred_class = int(np.argmax(proba[0]))
-            confidence = float(np.max(proba[0]))
-            label = ATTACK_LABELS[pred_class] if pred_class < len(ATTACK_LABELS) else f"class_{pred_class}"
+            res = ids_model.predict(f)
+            label = res.get("attack_type", "normal")
+            confidence = res.get("risk_score", 0.0)
+            risk_label = res.get("risk_label", "Low")
         except Exception:
             label = "error"
             confidence = 0.0
-            pred_class = -1
+            risk_label = "Low"
 
-        is_threat = label != "normal" and pred_class != 0
+        is_threat = label != "normal" and label != "Normal Traffic" and label != "unknown"
+        
+        # Fire alerts for High/Critical risk
+        if risk_label in ("High", "Critical"):
+            severity = AlertSeverity.CRITICAL if risk_label == "Critical" else AlertSeverity.HIGH
+            alert_msg = f"Live Capture Threat Detected: {label.upper()} from {pkt.get('src')} to {pkt.get('dst')} (Conf: {confidence:.2f})"
+            asyncio.create_task(alert_manager.create_alert(
+                title=f"Live Threat: {label}", 
+                message=alert_msg, 
+                severity=severity
+            ))
+
         if is_threat:
             threat_count += 1
             attack_breakdown[label] = attack_breakdown.get(label, 0) + 1
@@ -1015,6 +1010,55 @@ async def combined_analytics(
             "attack_types": merged_attacks,
         },
     }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ANALYTICS ENDPOINTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/analytics/advanced", tags=["Analytics"])
+async def advanced_analytics(
+    hours: int = Query(24, ge=1, le=720),
+    _user: User = Depends(require_roles("admin", "analyst")),
+):
+    """Get full advanced analytics."""
+    return analytics_engine.get_full_analytics(hours)
+
+
+@app.get("/analytics/attack-distribution", tags=["Analytics"])
+async def attack_distribution(
+    hours: int = Query(24, ge=1, le=720),
+    _user: User = Depends(require_roles("admin", "analyst")),
+):
+    """Get attack type distribution."""
+    return analytics_engine.get_attack_distribution(hours)
+
+
+@app.get("/analytics/trends", tags=["Analytics"])
+async def detection_trends(
+    hours: int = Query(24, ge=1, le=720),
+    _user: User = Depends(require_roles("admin", "analyst")),
+):
+    """Get detection rate trends over time."""
+    return analytics_engine.get_detection_trends(hours)
+
+
+@app.get("/analytics/top-talkers", tags=["Analytics"])
+async def top_talkers(
+    limit: int = Query(10, ge=1, le=50),
+    _user: User = Depends(require_roles("admin", "analyst")),
+):
+    """Get top source and destination IPs."""
+    return analytics_engine.get_top_talkers(limit)
+
+
+@app.get("/analytics/model-performance", tags=["Analytics"])
+async def model_performance(
+    _user: User = Depends(require_roles("admin", "analyst")),
+):
+    """Get model performance metrics."""
+    return analytics_engine.get_model_performance()
+
 
 @app.websocket("/ws/live-capture")
 async def ws_live_capture(ws: WebSocket, token: str = Query(...)):

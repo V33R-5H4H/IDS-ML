@@ -141,14 +141,154 @@
   <!-- ALERTS -->
   <section id="section-alerts" class="content-section">
     <div class="section-header">
-      <h1 class="section-title"><i class="bi bi-bell-fill"></i> Alert System</h1>
+      <div>
+        <h1 class="section-title"><i class="bi bi-bell-fill"></i> Alert System</h1>
+        <p class="section-sub">Real-time intrusion alerts with Email &amp; Slack notifications</p>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost btn-sm" onclick="loadAlerts()">
+          <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="toggleAlertConfig()">
+          <i class="bi bi-gear me-1"></i>Settings
+        </button>
+      </div>
     </div>
-    <div class="card">
-      <div class="card-header"><h3>Alerts</h3></div>
-      <div class="card-body coming-soon">
-        <i class="bi bi-bell-slash coming-soon-icon"></i>
-        <p>Email / SMS / Slack alerts — Phase 3, Week 8.</p>
-        <span class="phase-badge">Phase 3</span>
+
+    <!-- Alert Stats -->
+    <div class="stats-grid" id="alertStatsGrid">
+      <div class="stat-card">
+        <div class="stat-icon"><i class="bi bi-bell-fill"></i></div>
+        <div class="stat-value" id="alertStatTotal">0</div>
+        <div class="stat-label">Total Alerts</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(239,68,68,.15);color:#ef4444;"><i class="bi bi-exclamation-triangle-fill"></i></div>
+        <div class="stat-value" id="alertStatUnack">0</div>
+        <div class="stat-label">Unacknowledged</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(245,158,11,.15);color:#f59e0b;"><i class="bi bi-envelope-fill"></i></div>
+        <div class="stat-value" id="alertStatEmails">0</div>
+        <div class="stat-label">Emails Sent</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(139,92,246,.15);color:#8b5cf6;"><i class="bi bi-slack"></i></div>
+        <div class="stat-value" id="alertStatSlack">0</div>
+        <div class="stat-label">Slack Sent</div>
+      </div>
+    </div>
+
+    <!-- Alert Filters -->
+    <div class="card" style="margin-top:16px;">
+      <div class="card-header">
+        <h3><i class="bi bi-funnel me-2"></i>Alerts
+          <span class="nav-badge" id="alertCount" style="margin-left:6px;">0</span>
+        </h3>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select id="alertSeverityFilter" class="form-select" style="width:auto;font-size:13px;" onchange="loadAlerts()">
+            <option value="">All Severities</option>
+            <option value="critical">🚨 Critical</option>
+            <option value="high">🔴 High</option>
+            <option value="medium">⚠️ Medium</option>
+            <option value="low">ℹ️ Low</option>
+          </select>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;color:var(--text-muted);cursor:pointer;">
+            <input type="checkbox" id="alertUnackFilter" onchange="loadAlerts()"> Unack only
+          </label>
+          <button class="btn btn-sm btn-ghost" onclick="acknowledgeAllAlerts()" title="Acknowledge all">
+            <i class="bi bi-check-all"></i> Ack All
+          </button>
+          <button class="btn btn-sm btn-ghost" onclick="toggleCreateAlert()" title="Create manual alert">
+            <i class="bi bi-plus-circle"></i> New
+          </button>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <!-- Create Alert Form (hidden by default) -->
+        <div id="createAlertForm" style="display:none;padding:16px;background:var(--bg-elevated);border-bottom:1px solid var(--border-color);">
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;">
+            <div>
+              <label style="font-size:12px;color:var(--text-muted);">Title</label>
+              <input id="newAlertTitle" type="text" class="form-input" placeholder="Alert title..." style="width:100%;">
+            </div>
+            <div>
+              <label style="font-size:12px;color:var(--text-muted);">Severity</label>
+              <select id="newAlertSeverity" class="form-select" style="width:100%;">
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="createManualAlert()">Send</button>
+          </div>
+          <textarea id="newAlertMessage" class="form-input" placeholder="Alert message..." rows="2" style="width:100%;margin-top:8px;"></textarea>
+        </div>
+        <!-- Alerts Table -->
+        <div style="max-height:500px;overflow-y:auto;">
+          <table class="data-table" style="width:100%;">
+            <thead>
+              <tr>
+                <th style="width:40px;">Sev</th>
+                <th>Title</th>
+                <th>Message</th>
+                <th>Source</th>
+                <th>Time</th>
+                <th>Channels</th>
+                <th style="width:80px;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="alertsTableBody">
+              <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">
+                <i class="bi bi-bell-slash" style="font-size:24px;"></i><br>No alerts yet
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alert Config Panel (hidden by default) -->
+    <div id="alertConfigPanel" class="card" style="margin-top:16px;display:none;">
+      <div class="card-header">
+        <h3><i class="bi bi-gear me-2"></i>Alert Configuration</h3>
+        <button class="btn btn-sm btn-ghost" onclick="toggleAlertConfig()"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div class="card-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <!-- Email Config -->
+          <div style="background:var(--bg-elevated);border-radius:8px;padding:16px;">
+            <h4 style="color:var(--text-primary);margin-bottom:12px;"><i class="bi bi-envelope me-2"></i>Email (SMTP)</h4>
+            <label class="toggle-label">
+              <input type="checkbox" id="emailEnabled"> Enabled
+            </label>
+            <div style="display:grid;gap:8px;margin-top:8px;">
+              <input id="emailHost" class="form-input" placeholder="SMTP Host (e.g. smtp.gmail.com)">
+              <input id="emailPort" class="form-input" type="number" placeholder="Port (587)">
+              <input id="emailUser" class="form-input" placeholder="Username/Email">
+              <input id="emailPass" class="form-input" type="password" placeholder="App Password">
+              <input id="emailFrom" class="form-input" placeholder="From Address">
+              <input id="emailTo" class="form-input" placeholder="To (comma-separated)">
+            </div>
+          </div>
+          <!-- Slack Config -->
+          <div style="background:var(--bg-elevated);border-radius:8px;padding:16px;">
+            <h4 style="color:var(--text-primary);margin-bottom:12px;"><i class="bi bi-slack me-2"></i>Slack Webhook</h4>
+            <label class="toggle-label">
+              <input type="checkbox" id="slackEnabled"> Enabled
+            </label>
+            <div style="display:grid;gap:8px;margin-top:8px;">
+              <input id="slackWebhook" class="form-input" placeholder="Webhook URL">
+              <input id="slackChannel" class="form-input" placeholder="Channel (#ids-alerts)">
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:16px;text-align:right;">
+          <button class="btn btn-primary" onclick="saveAlertConfig()">
+            <i class="bi bi-check-lg me-1"></i>Save Configuration
+          </button>
+        </div>
       </div>
     </div>
   </section>
@@ -536,6 +676,93 @@
     </div>
   </section>
 
+  <!-- ADVANCED ANALYTICS -->
+  <section id="section-analytics" class="content-section">
+    <div class="section-header">
+      <div>
+        <h1 class="section-title"><i class="bi bi-graph-up-arrow"></i> Advanced Analytics</h1>
+        <p class="section-sub">Attack trends, model performance, and network intelligence</p>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="analyticsHours" class="form-select" style="width:auto;font-size:13px;" onchange="loadAdvancedAnalytics()">
+          <option value="1">Last 1 hour</option>
+          <option value="6">Last 6 hours</option>
+          <option value="24" selected>Last 24 hours</option>
+          <option value="168">Last 7 days</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="loadAdvancedAnalytics()">
+          <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+        </button>
+      </div>
+    </div>
+
+    <!-- Analytics Stats -->
+    <div class="stats-grid" id="analyticsStatsGrid">
+      <div class="stat-card">
+        <div class="stat-icon"><i class="bi bi-activity"></i></div>
+        <div class="stat-value" id="analyticsTotalPreds">0</div>
+        <div class="stat-label">Total Predictions</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(239,68,68,.15);color:#ef4444;"><i class="bi bi-shield-exclamation"></i></div>
+        <div class="stat-value" id="analyticsTotalAttacks">0</div>
+        <div class="stat-label">Attacks Detected</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(245,158,11,.15);color:#f59e0b;"><i class="bi bi-percent"></i></div>
+        <div class="stat-value" id="analyticsAttackRate">0%</div>
+        <div class="stat-label">Attack Rate</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(74,222,128,.15);color:#4ade80;"><i class="bi bi-check-circle"></i></div>
+        <div class="stat-value" id="analyticsAvgConf">0%</div>
+        <div class="stat-label">Avg Confidence</div>
+      </div>
+    </div>
+
+    <!-- Charts Row 1: Attack Distribution + Detection Trends -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+      <div class="card">
+        <div class="card-header"><h3><i class="bi bi-pie-chart me-2"></i>Attack Distribution</h3></div>
+        <div class="card-body" style="height:300px;">
+          <canvas id="attackDistChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3><i class="bi bi-graph-up me-2"></i>Detection Trends</h3></div>
+        <div class="card-body" style="height:300px;">
+          <canvas id="detectionTrendChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Row 2: Top Talkers + PCAP vs Live -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+      <div class="card">
+        <div class="card-header"><h3><i class="bi bi-people me-2"></i>Top Attack Sources</h3></div>
+        <div class="card-body" style="height:300px;">
+          <canvas id="topTalkersChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3><i class="bi bi-arrow-left-right me-2"></i>PCAP vs Live Capture</h3></div>
+        <div class="card-body">
+          <div id="sourceComparisonContent" style="padding:16px;">
+            <p style="text-align:center;color:var(--text-muted);">No comparison data yet</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Protocol Breakdown -->
+    <div class="card" style="margin-top:16px;">
+      <div class="card-header"><h3><i class="bi bi-diagram-3 me-2"></i>Protocol Breakdown</h3></div>
+      <div class="card-body" style="height:250px;">
+        <canvas id="protocolChart"></canvas>
+      </div>
+    </div>
+  </section>
+
   <!-- SYSTEM HEALTH -->
   <section id="section-health" class="content-section">
     <div class="section-header">
@@ -751,6 +978,8 @@
 <script src="js/api.js"></script>
 <script src="js/pcap.js"></script>
 <script src="js/live_capture.js"></script>
+<script src="js/alerts.js"></script>
+<script src="js/analytics.js"></script>
 <script src="js/account.js"></script>
 <script src="js/dashboard.js"></script>
 <script src="js/predictions.js"></script>
