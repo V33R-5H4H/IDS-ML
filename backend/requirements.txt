@@ -7,7 +7,7 @@
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
 pydantic==2.4.2
-python-multipart==0.0.6
+python-multipart==0.0.22
 
 # ML & Data Processing (Updated for compatibility)
 scikit-learn==1.5.2
