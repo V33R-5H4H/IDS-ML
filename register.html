@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>IDS-ML v2.0 — Register</title>
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"/>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body class="auth-body">
+
+<!-- Background glow blobs -->
+<div class="auth-bg">
+  <div class="auth-glow auth-glow-1"></div>
+  <div class="auth-glow auth-glow-2"></div>
+</div>
+
+<div class="auth-wrap">
+  <div class="auth-card">
+
+    <!-- Logo / Brand -->
+    <div class="auth-logo">
+      <i class="bi bi-shield-fill-check auth-logo-icon"></i>
+      <div>
+        <div class="auth-logo-title">
+          IDS-ML <span class="auth-logo-ver">v2.0</span>
+        </div>
+        <div class="auth-logo-sub">Network Intrusion Detection System</div>
+      </div>
+    </div>
+
+    <h2 class="auth-heading">Create Account</h2>
+    <p class="auth-sub">
+      New accounts start as <strong>Viewer</strong> — request a role upgrade after login.
+    </p>
+
+    <!-- Alert -->
+    <div id="registerAlert" class="auth-alert"></div>
+
+    <form id="registerForm" onsubmit="handleRegister(event)" novalidate>
+
+      <!-- Username -->
+      <div class="form-group">
+        <label class="form-label">
+          <i class="bi bi-person me-1"></i>Username
+        </label>
+        <input type="text" id="regUsername" class="form-input"
+               placeholder="Choose a username"
+               autocomplete="off" required/>
+      </div>
+
+      <!-- Email -->
+      <div class="form-group">
+        <label class="form-label">
+          <i class="bi bi-envelope me-1"></i>Email
+        </label>
+        <input type="email" id="regEmail" class="form-input"
+               placeholder="you@example.com"
+               autocomplete="off" required/>
+      </div>
+
+      <!-- Password -->
+      <div class="form-group">
+        <label class="form-label">
+          <i class="bi bi-lock me-1"></i>Password
+        </label>
+        <div class="input-pw-wrap">
+          <input type="password" id="regPassword" class="form-input"
+                 placeholder="Min. 6 characters"
+                 autocomplete="new-password" required
+                 oninput="updatePwStrength(this.value)"/>
+          <button type="button" class="pw-toggle"
+                  onclick="togglePw('regPassword', this)" tabindex="-1">
+            <i class="bi bi-eye"></i>
+          </button>
+        </div>
+        <!-- Strength bar -->
+        <div class="pw-strength-wrap">
+          <div class="pw-strength-bar">
+            <div id="regPwBar" class="pw-strength-fill" style="width:0%;"></div>
+          </div>
+          <span id="regPwLabel" class="pw-strength-label"></span>
+        </div>
+      </div>
+
+      <!-- Confirm Password -->
+      <div class="form-group">
+        <label class="form-label">
+          <i class="bi bi-lock-fill me-1"></i>Confirm Password
+        </label>
+        <div class="input-pw-wrap">
+          <input type="password" id="regConfirm" class="form-input"
+                 placeholder="Repeat password"
+                 autocomplete="new-password" required/>
+          <button type="button" class="pw-toggle"
+                  onclick="togglePw('regConfirm', this)" tabindex="-1">
+            <i class="bi bi-eye"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Role notice -->
+      <div style="
+        display:flex; align-items:flex-start; gap:9px;
+        background:rgba(59,130,246,.08); border:1px solid rgba(59,130,246,.2);
+        border-radius:6px; padding:10px 13px;
+        font-size:.78rem; color:#94a3b8; margin-bottom:18px;">
+        <i class="bi bi-info-circle-fill"
+           style="color:#3b82f6; flex-shrink:0; margin-top:1px;"></i>
+        <span>
+          New accounts are assigned <strong style="color:#e2e8f0;">Viewer</strong>
+          role by default. Use <em>My Account → Access</em> after login to request
+          an upgrade.
+        </span>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-full" id="registerBtn">
+        <i class="bi bi-person-plus me-2"></i>Create Account
+      </button>
+
+    </form>
+
+    <div class="auth-divider"><span>or</span></div>
+
+    <p class="auth-switch">
+      Already have an account?
+      <a href="index.html" class="link-accent">Sign in</a>
+    </p>
+
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script src="js/register.js"></script>
+</body>
+</html>
