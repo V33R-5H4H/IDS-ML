@@ -118,5 +118,4 @@ package-lock.json
 /tests
 /docs/New folder/
 docs/walkthrough.md
-frontend/js/config.js
 data/raw/*
